@@ -45,5 +45,11 @@ window.RECEPTEN = [
     tag:"Oven · ±30 min", desc:"Gekruide kip en paprika met rode pesto en crème fraîche, gegratineerd in de oven.",
     ing:["Volkoren wraps","Kipfilet","3 paprika's","125 g crème fraîche light","Rode pesto","Geraspte kaas","Paprikapoeder","Knoflook(poeder)","Peper en zout","Oregano"],
     steps:["Verwarm de oven voor op 180 °C.","Snijd de kip in reepjes en kruid met paprikapoeder, knoflook, peper, zout en oregano.","Bak de kip in een pan bijna gaar. Voeg de paprika in reepjes toe en bak 4–5 minuten mee.","Roer de crème fraîche en de rode pesto erdoor.","Verdeel de vulling over de wraps, rol ze op en leg ze naast elkaar in een ovenschaal.","Strooi de geraspte kaas erover.","Bak 10–15 minuten op 180 °C tot de kaas gesmolten en goudbruin is."]
+  },
+  {
+    id:"andijvie", name:"Stamppot andijvie met gehaktballen", emoji:"🥔", color:"#e3ebd9",
+    tag:"Pan · ±45 min", desc:"Romige stamppot met rauwe andijvie en spekjes, met zelfgemaakte gehaktballen en jus.",
+    ing:["800 g kruimige aardappelen","300 g andijvie (gesneden)","75 g spekjes","Scheutje melk","Klontje roomboter","1 tl mosterd","Nootmuskaat","400 g gehakt","1 ei","3 el paneermeel","1 kleine ui (fijngesnipperd)","Peper en zout","Roomboter (om te bakken)"],
+    steps:["Schil de aardappelen, snijd ze in stukken en kook ze in 20 minuten gaar in water met zout.","Meng het gehakt met het ei, paneermeel, de fijne ui, peper, zout en een snufje nootmuskaat.","Draai er met natte handen 4–6 ballen van.","Bak de gehaktballen rondom bruin in een flinke klont roomboter.","Zet het vuur laag, doe een scheutje water in de pan en laat ze met deksel 20 minuten zacht garen. Het bakvet wordt jus.","Bak ondertussen de spekjes knapperig in een droge koekenpan.","Giet de aardappelen af en stamp ze fijn met melk, boter, mosterd en wat nootmuskaat.","Schep de rauwe andijvie en de spekjes erdoor. De andijvie slinkt vanzelf door de warmte.","Breng op smaak met peper en zout en serveer met de gehaktballen en jus."]
   }
 ];
