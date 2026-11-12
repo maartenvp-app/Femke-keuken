@@ -1,5 +1,5 @@
 // Werkt offline: haalt altijd eerst de nieuwste versie op, en valt terug op de cache zonder internet.
-const CACHE = "femke-keuken-v1";
+const CACHE = "femke-keuken-v2";
 const FILES = ["./", "index.html", "recepten.js", "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
