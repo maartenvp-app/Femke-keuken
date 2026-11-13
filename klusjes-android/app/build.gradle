@@ -1,0 +1,34 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'nl.maarten.klusjes'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'nl.maarten.klusjes'
+        minSdk 24
+        targetSdk 34
+        versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int)
+        versionName "1." + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+    }
+
+    // Vaste sleutel, zodat een nieuwe APK als update over de oude heen installeert.
+    signingConfigs {
+        thuis {
+            storeFile file('../klusjes.keystore')
+            storePassword 'klusjes'
+            keyAlias 'klusjes'
+            keyPassword 'klusjes'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.thuis
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

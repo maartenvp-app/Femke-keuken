@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Klusjes">
+<meta name="theme-color" content="#f3f1ea">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<title>Klusjes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f3f1ea; --card:#fffdf8; --ink:#22251f; --muted:#7c7f74; --line:#e4e0d4;
+  --accent:#3d7a57; --accent-soft:#dcebe1; --late:#c4452d; --late-soft:#f8ddd5; --today:#c98a1b; --today-soft:#f7ebcf;
+  --m:#3f6fb5; --m-soft:#dce7f6; --f:#d0587e; --f-soft:#f8dde6;
+  --radius:18px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,-apple-system,system-ui,sans-serif;font-size:16px}
+body{padding:env(safe-area-inset-top) 0 calc(86px + env(safe-area-inset-bottom));-webkit-user-select:none;user-select:none}
+input,select{-webkit-user-select:text;user-select:text}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;margin:0;letter-spacing:-.01em}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px 20px}
+header.top{max-width:560px;margin:0 auto;padding:16px 16px 4px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+header.top .hi{color:var(--muted);font-size:14px;display:flex;align-items:center;gap:7px}
+header.top h1{font-size:30px;line-height:1.1;margin-top:3px}
+.dot{width:8px;height:8px;border-radius:50%;background:#b9b6aa;display:inline-block}
+.dot.live{background:#3fae6a;box-shadow:0 0 0 3px #3fae6a33}
+.dot.off{background:var(--today)}
+.gear{width:42px;height:42px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-size:19px;flex:none}
+
+/* score strip */
+.strip{margin:14px 0 4px;background:var(--ink);color:#fff;border-radius:var(--radius);padding:14px 16px}
+.strip .row{display:flex;justify-content:space-between;align-items:baseline;font-size:14px}
+.strip .row b{font-family:Fraunces,serif;font-size:24px;font-weight:700}
+.strip small{opacity:.65;font-size:12.5px}
+.bar{height:10px;border-radius:99px;background:#ffffff22;overflow:hidden;display:flex;margin:9px 0 2px}
+.bar i{display:block;height:100%;transition:width .4s}
+
+/* chips */
+.filters{display:flex;gap:8px;overflow-x:auto;margin:16px -16px 0;padding:0 16px 2px;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:8px 13px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:14px;font-weight:500}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* chore cards */
+.list{display:grid;gap:10px;margin-top:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 12px 12px 14px;display:flex;gap:12px;align-items:center}
+.card .main{flex:1;min-width:0;display:flex;gap:12px;align-items:center;text-align:left}
+.emoji{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-size:25px;flex:none;background:var(--accent-soft)}
+.card h3{font-family:Inter,sans-serif;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card p{margin:2px 0 0;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;margin-top:5px;background:var(--accent-soft);color:var(--accent)}
+.tag.late{background:var(--late-soft);color:var(--late)}
+.tag.today{background:var(--today-soft);color:var(--today)}
+.tag.none{background:#eeece4;color:var(--muted)}
+.who{display:flex;gap:6px;flex:none}
+.who button{width:46px;height:46px;border-radius:50%;font-weight:700;font-size:15px;display:grid;place-items:center;position:relative;transition:transform .12s}
+.who button:active{transform:scale(.9)}
+.who .m{background:var(--m-soft);color:var(--m)}
+.who .f{background:var(--f-soft);color:var(--f)}
+.who button .n{position:absolute;right:-3px;bottom:-3px;min-width:19px;height:19px;padding:0 5px;border-radius:99px;font-size:11px;line-height:19px;color:#fff;border:2px solid var(--card)}
+.who .m .n{background:var(--m)} .who .f .n{background:var(--f)}
+.who button.pop{animation:pop .45s}
+@keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.25)}100%{transform:scale(1)}}
+.add-card{border:1.5px dashed #cfcabb;background:transparent;justify-content:center;color:var(--muted);font-weight:500;padding:16px;width:100%;border-radius:var(--radius)}
+.empty{color:var(--muted);text-align:center;padding:30px 10px;font-size:15px}
+.hint{color:var(--muted);font-size:13px;text-align:center;margin-top:14px}
+
+/* score view */
+h2.sec{font-size:22px;margin:20px 0 10px}
+.seg{display:flex;background:#e9e6dc;border-radius:12px;padding:3px;margin-top:14px}
+.seg button{flex:1;padding:9px 0;border-radius:10px;font-weight:600;font-size:14px;color:var(--muted)}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px #0001}
+.duel{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.duel .p{border-radius:var(--radius);padding:16px;text-align:left}
+.duel .p span{font-size:14px;font-weight:600}
+.duel .p b{display:block;font-family:Fraunces,serif;font-size:40px;line-height:1.1;margin-top:4px}
+.duel .p small{font-size:13px;opacity:.8}
+.duel .p.lead{outline:2.5px solid currentColor}
+.rows{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:4px 14px}
+.rrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.rrow:last-child{border-bottom:0}
+.rrow .nm{flex:1;min-width:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrow .mini{width:86px;height:7px;border-radius:99px;background:#eeece4;overflow:hidden;display:flex;flex:none}
+.rrow .mini i{display:block;height:100%}
+.num{font-weight:700;font-size:14px;width:24px;text-align:center;flex:none}
+
+/* history */
+.day{font-weight:600;color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.04em;margin:18px 2px 7px}
+.hrow{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line)}
+.hrow:last-child{border-bottom:0}
+.hrow .e{font-size:21px;width:28px;text-align:center}
+.hrow .t{flex:1;min-width:0;font-size:15px}
+.hrow .t small{display:block;color:var(--muted);font-size:12.5px;margin-top:1px}
+.pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px}
+.pill.m{background:var(--m-soft);color:var(--m)} .pill.f{background:var(--f-soft);color:var(--f)}
+.x{color:var(--muted);font-size:18px;width:30px;height:30px;border-radius:50%}
+
+/* tab bar */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:#fffdf8f2;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;justify-content:center;padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:20}
+nav.tabs button{flex:1;max-width:150px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);padding:5px 0}
+nav.tabs button span{font-size:22px;filter:grayscale(1);opacity:.6}
+nav.tabs button.on{color:var(--ink)}
+nav.tabs button.on span{filter:none;opacity:1}
+
+/* sheet */
+.shade{position:fixed;inset:0;background:#0006;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
+.shade.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;background:var(--bg);border-radius:24px 24px 0 0;padding:10px 18px calc(22px + env(safe-area-inset-bottom));transform:translateY(105%);transition:transform .25s ease;z-index:31;max-height:88vh;overflow-y:auto}
+.sheet.open{transform:none}
+.grab{width:40px;height:5px;border-radius:9px;background:#cfcabb;margin:0 auto 14px}
+.sheet h2{font-size:24px;margin-bottom:14px}
+label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:14px 0 6px}
+.inp{width:100%;font:inherit;font-size:16px;padding:13px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);outline:none}
+.inp:focus{border-color:var(--accent)}
+.emojis{display:flex;flex-wrap:wrap;gap:6px}
+.emojis button{width:42px;height:42px;border-radius:12px;font-size:22px;background:var(--card);border:1px solid var(--line)}
+.emojis button.on{border:2px solid var(--accent);background:var(--accent-soft)}
+.freq{display:flex;flex-wrap:wrap;gap:6px}
+.btn{display:block;width:100%;border-radius:14px;padding:14px 10px;font-weight:600;font-size:16px;text-align:center;margin-top:18px}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.ghost{background:var(--card);border:1px solid var(--line)}
+.btn.danger{color:var(--late);margin-top:10px}
+.pick2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pick2 button{padding:18px 10px;border-radius:16px;font-weight:700;font-size:17px;border:2px solid transparent}
+.pick2 .m{background:var(--m-soft);color:var(--m)} .pick2 .f{background:var(--f-soft);color:var(--f)}
+.pick2 button.on{border-color:currentColor}
+.note{font-size:13.5px;color:var(--muted);line-height:1.45;margin-top:8px}
+.note code{font-size:12px;background:#e9e6dc;padding:1px 5px;border-radius:5px;word-break:break-all}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:11px 12px 11px 16px;border-radius:14px;font-size:14.5px;display:flex;gap:14px;align-items:center;opacity:0;pointer-events:none;transition:all .2s;z-index:40;width:max-content;max-width:calc(100% - 32px)}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{color:#9fe0b6;font-weight:700;padding:4px 6px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <div class="hi"><span class="dot" id="syncDot"></span><span id="hello">Hoi!</span></div>
+    <h1 id="title">Klusjes</h1>
+  </div>
+  <button class="gear" id="gearBtn" aria-label="Instellingen">⚙️</button>
+</header>
+
+<main class="wrap">
+  <!-- KLUSJES -->
+  <section id="v-klusjes">
+    <div class="strip" id="strip"></div>
+    <div class="filters" id="filters"></div>
+    <div class="list" id="list"></div>
+    <p class="hint">Tik op <b>M</b> of <b>F</b> als die het klusje gedaan heeft. Tik op een klusje om het aan te passen.</p>
+  </section>
+
+  <!-- SCORE -->
+  <section id="v-score" class="hidden">
+    <div class="seg" id="seg"></div>
+    <div class="duel" id="duel"></div>
+    <h2 class="sec">Per klusje</h2>
+    <div class="rows" id="perKlus"></div>
+  </section>
+
+  <!-- HISTORIE -->
+  <section id="v-historie" class="hidden">
+    <div id="hist"></div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button data-tab="klusjes" class="on"><span>✅</span>Klusjes</button>
+  <button data-tab="score"><span>🏆</span>Score</button>
+  <button data-tab="historie"><span>📜</span>Historie</button>
+</nav>
+
+<div class="shade" id="shade"></div>
+<div class="sheet" id="sheet"></div>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastUndo">Ongedaan</button></div>
+
+<script src="config.js"></script>
+<script>
+"use strict";
+const CFG = window.KLUSJES_CONFIG;
+const P = CFG.PERSONEN;
+const WIE = ["maarten", "femke"];
+const LS = k => "klusjes:" + k;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const DAG = 864e5;
+
+/* ---------- opslag ---------- */
+function load(k, d) { try { const v = localStorage.getItem(LS(k)); return v ? JSON.parse(v) : d; } catch { return d; } }
+function save(k, v) { try { localStorage.setItem(LS(k), JSON.stringify(v)); } catch {} }
+
+const url = () => (load("dbUrl", "") || CFG.FIREBASE_URL || "").replace(/\/+$/, "");
+const code = () => load("huisCode", "") || CFG.HUIS_CODE;
+let me = load("ik", null);
+let server = load("server", {});      // laatste bekende stand van de database
+let pending = load("pending", []);     // wijzigingen die nog verstuurd moeten worden
+let data = {};                         // server + pending = wat je ziet
+
+/* ---------- data-model helpers (paden zoals "log/abc") ---------- */
+function setPath(obj, path, val) {
+  const parts = path.split("/").filter(Boolean);
+  if (!parts.length) return val && typeof val === "object" ? val : {};
+  let o = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!o[parts[i]] || typeof o[parts[i]] !== "object") o[parts[i]] = {};
+    o = o[parts[i]];
+  }
+  const last = parts[parts.length - 1];
+  if (val === null || val === undefined) delete o[last]; else o[last] = val;
+  return obj;
+}
+function rebuild() {
+  data = JSON.parse(JSON.stringify(server || {}));
+  for (const op of pending) setPath(data, op.p, op.m === "DELETE" ? null : op.d);
+  data.klusjes = data.klusjes || {};
+  data.log = data.log || {};
+}
+function write(path, val) {
+  pending.push(val === null ? { m: "DELETE", p: path } : { m: "PUT", p: path, d: val });
+  save("pending", pending);
+  rebuild(); render(); flush();
+}
+
+/* ---------- synchronisatie (Firebase Realtime Database via REST + live stream) ---------- */
+let es = null, flushing = false, online = false, retryT = null;
+const base = () => url() + "/huishoudens/" + encodeURIComponent(code());
+
+async function flush() {
+  if (!url() || flushing || !pending.length) return;
+  flushing = true;
+  try {
+    while (pending.length) {
+      const op = pending[0];
+      const r = await fetch(base() + "/" + op.p + ".json", {
+        method: op.m, body: op.m === "PUT" ? JSON.stringify(op.d) : undefined
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      setPath(server, op.p, op.m === "DELETE" ? null : op.d);
+      pending.shift();
+      save("pending", pending); save("server", server);
+    }
+  } catch (e) {
+    clearTimeout(retryT); retryT = setTimeout(flush, 6000);
+  } finally { flushing = false; }
+}
+
+function connect() {
+  if (es) { es.close(); es = null; }
+  setDot();
+  if (!url()) return;
+  es = new EventSource(base() + ".json");
+  const onData = (kind) => (ev) => {
+    let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+    if (!msg) return;
+    if (kind === "put") {
+      if (msg.path === "/") server = msg.data || {};
+      else setPath(server, msg.path, msg.data);
+    } else {
+      for (const [k, v] of Object.entries(msg.data || {})) setPath(server, msg.path.replace(/\/$/, "") + "/" + k, v);
+    }
+    online = true; setDot();
+    save("server", server);
+    seedIfEmpty();
+    rebuild(); render();
+  };
+  es.addEventListener("put", onData("put"));
+  es.addEventListener("patch", onData("patch"));
+  es.addEventListener("cancel", () => { online = false; setDot("Geen toegang tot database (regels?)"); });
+  es.onopen = () => { online = true; setDot(); flush(); };
+  es.onerror = () => { online = false; setDot(); };
+}
+window.addEventListener("online", () => { flush(); if (!es || es.readyState === 2) connect(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") { flush(); if (!es || es.readyState === 2) connect(); }
+});
+
+function setDot(msg) {
+  const d = $("#syncDot");
+  d.className = "dot" + (!url() ? "" : online ? " live" : " off");
+  d.title = msg || (!url() ? "Alleen op dit toestel" : online ? "Live gekoppeld" : "Offline – wordt later verstuurd");
+}
+
+/* ---------- standaard klusjes (vaste id's: twee keer toevoegen geeft geen dubbele) ---------- */
+const STANDAARD = [
+  // wekelijks
+  ["wittewas", "Witte was", "🤍", 7], ["normalewas", "Normale was", "👕", 7], ["handdoeken", "Handdoeken was", "🧖", 7],
+  ["stofzuigen", "Stofzuigen", "🧹", 7], ["dweilen", "Dweilen", "🪣", 7], ["wc", "Wc schoonmaken", "🚽", 7],
+  ["vouwen", "Was opvouwen", "🧺", 7], ["strijken", "Strijken", "👔", 7], ["afstoffen", "Afstoffen met doekje", "🪶", 7],
+  ["badmeubel", "Badkamermeubel schoonmaken", "🧽", 7], ["spiegel", "Spiegel badkamer schoonmaken", "🪞", 7],
+  ["vaatwasser", "Vaatwasser uitruimen", "🍽️", 1], ["boodschappen", "Boodschappen doen", "🛒", 7],
+  // periodiek (voorbeelden, makkelijk aan te passen of te verwijderen)
+  ["ramen", "Ramen lappen", "🪟", 30], ["koelkast", "Koelkast schoonmaken", "❄️", 30], ["oven", "Oven schoonmaken", "🔥", 91],
+  ["matras", "Matras keren", "🛏️", 182], ["vriezer", "Vriezer ontdooien", "🧊", 365]
+];
+let seeded = false;
+function seedIfEmpty() {
+  if (seeded || load("seeded", false)) return;
+  seeded = true; save("seeded", true);
+  if (server.klusjes && Object.keys(server.klusjes).length) return;
+  STANDAARD.forEach(([id, naam, emoji, elke], i) => {
+    pending.push({ m: "PUT", p: "klusjes/s-" + id, d: { naam, emoji, elke, v: i } });
+  });
+  save("pending", pending); flush();
+}
+
+/* ---------- berekeningen ---------- */
+const startOfDay = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+function logList() { return Object.entries(data.log).map(([id, e]) => ({ id, ...e })).sort((a, b) => b.t - a.t); }
+function lastDone(kid) { let best = null; for (const e of Object.values(data.log)) if (e.k === kid && (!best || e.t > best.t)) best = e; return best; }
+function periodStart(p) {
+  const now = new Date();
+  if (p === "week") { const d = startOfDay(now); const wd = (now.getDay() + 6) % 7; return d - wd * DAG; }
+  if (p === "maand") return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  return 0;
+}
+function counts(since, kid) {
+  const c = { maarten: 0, femke: 0 };
+  for (const e of Object.values(data.log)) if (e.t >= since && (!kid || e.k === kid) && c[e.w] !== undefined) c[e.w]++;
+  return c;
+}
+function status(k, kid) {
+  const last = lastDone(kid);
+  if (!k.elke) return { order: 9e9, label: "Wanneer nodig", cls: "none", last };
+  if (!last) return k.elke > 14
+    ? { order: 5e8, label: "Nog niet gedaan", cls: "none", last }
+    : { order: -1e6, label: "Nog niet gedaan", cls: "late", last };
+  const due = startOfDay(last.t) + k.elke * DAG;
+  const diff = Math.round((due - startOfDay(Date.now())) / DAG);
+  if (diff < 0) return { order: diff, label: (-diff) + (diff === -1 ? " dag" : " dagen") + " te laat", cls: "late", last };
+  if (diff === 0) return { order: 0, label: "Vandaag", cls: "today", last };
+  if (diff === 1) return { order: 1, label: "Morgen", cls: "", last };
+  if (diff <= 13) return { order: diff, label: "Over " + diff + " dagen", cls: "", last };
+  if (diff <= 60) return { order: diff, label: "Over " + Math.round(diff / 7) + " weken", cls: "", last };
+  return { order: diff, label: "Rond " + new Date(due).toLocaleDateString("nl-NL", { month: "long", year: "numeric" }), cls: "", last };
+}
+function ago(t) {
+  const d = Math.round((startOfDay(Date.now()) - startOfDay(t)) / DAG);
+  if (d === 0) return "vandaag " + new Date(t).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+  if (d === 1) return "gisteren";
+  if (d < 7) return d + " dagen geleden";
+  return new Date(t).toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+}
+const FREQ = [[1, "Elke dag"], [2, "Om de dag"], [3, "Elke 3 dagen"], [7, "Elke week"], [14, "Om de week"], [30, "Elke maand"], [61, "Elke 2 maanden"], [91, "Elk kwartaal"], [182, "Elk half jaar"], [365, "Elk jaar"], [0, "Wanneer nodig"]];
+const freqTxt = n => { const f = FREQ.find(x => x[0] === n); return f ? f[1].toLowerCase() : "elke " + n + " dagen"; };
+const isPeriodiek = k => !k.elke || k.elke > 14;
+
+/* ---------- weergave ---------- */
+let tab = "klusjes", periode = "week", filter = "alles";
+const FILTERS = [["alles", "Alles"], ["nu", "Nu te doen"], ["week", "Wekelijks"], ["periodiek", "Periodiek"]];
+
+function render() {
+  const naam = me ? P[me].naam : null;
+  $("#hello").textContent = naam ? "Hoi " + naam + "!" : "Hoi!";
+  if (tab === "klusjes") renderKlusjes();
+  if (tab === "score") renderScore();
+  if (tab === "historie") renderHist();
+}
+
+function stripHtml(since, label) {
+  const c = counts(since); const tot = c.maarten + c.femke;
+  const pm = tot ? c.maarten / tot * 100 : 50;
+  return `<div class="row"><span>${P.maarten.naam} <b>${c.maarten}</b></span><small>${label}</small><span><b>${c.femke}</b> ${P.femke.naam}</span></div>
+    <div class="bar"><i style="width:${pm}%;background:${P.maarten.kleur}"></i><i style="width:${100 - pm}%;background:${P.femke.kleur}"></i></div>`;
+}
+
+function renderKlusjes() {
+  $("#strip").innerHTML = stripHtml(periodStart("week"), "deze week");
+  $("#filters").innerHTML = FILTERS.map(([k, l]) => `<button class="chip ${filter === k ? "on" : ""}" data-filter="${k}">${l}</button>`).join("");
+  const since = periodStart("maand");
+  let items = Object.entries(data.klusjes).map(([id, k]) => ({ id, k, s: status(k, id) }));
+  if (filter === "nu") items = items.filter(x => x.s.cls === "late" || x.s.cls === "today");
+  if (filter === "week") items = items.filter(x => !isPeriodiek(x.k));
+  if (filter === "periodiek") items = items.filter(x => isPeriodiek(x.k));
+  items.sort((a, b) => a.s.order - b.s.order || (a.k.v ?? 99) - (b.k.v ?? 99) || a.k.naam.localeCompare(b.k.naam));
+  const html = items.map(({ id, k, s }) => {
+    const c = counts(since, id);
+    const lastTxt = s.last ? `${ago(s.last.t)} · ${esc(P[s.last.w]?.naam || "?")}` : freqTxt(k.elke).replace(/^./, c => c.toUpperCase());
+    return `<div class="card">
+      <button class="main" data-edit="${id}">
+        <div class="emoji">${esc(k.emoji || "✨")}</div>
+        <div style="min-width:0"><h3>${esc(k.naam)}</h3><p>${lastTxt}</p><span class="tag ${s.cls}">${s.label}</span></div>
+      </button>
+      <div class="who">
+        <button class="m" data-done="${id}" data-wie="maarten" aria-label="${P.maarten.naam} deed ${esc(k.naam)}">M${c.maarten ? `<span class="n">${c.maarten}</span>` : ""}</button>
+        <button class="f" data-done="${id}" data-wie="femke" aria-label="${P.femke.naam} deed ${esc(k.naam)}">F${c.femke ? `<span class="n">${c.femke}</span>` : ""}</button>
+      </div></div>`;
+  }).join("");
+  $("#list").innerHTML = (html || `<div class="empty">${filter === "nu" ? "Niks dat nu moet. Lekker bezig! 🎉" : "Nog geen klusjes."}</div>`)
+    + `<button class="add-card" data-add>＋ Klusje toevoegen</button>`;
+}
+
+function renderScore() {
+  const PER = [["week", "Deze week"], ["maand", "Deze maand"], ["altijd", "Altijd"]];
+  $("#seg").innerHTML = PER.map(([k, l]) => `<button class="${periode === k ? "on" : ""}" data-per="${k}">${l}</button>`).join("");
+  const since = periodStart(periode);
+  const c = counts(since); const tot = c.maarten + c.femke;
+  const card = w => {
+    const pct = tot ? Math.round(c[w] / tot * 100) : 0;
+    const other = w === "maarten" ? "femke" : "maarten";
+    return `<div class="p ${c[w] > c[other] ? "lead" : ""}" style="background:${P[w].zacht};color:${P[w].kleur}">
+      <span>${P[w].naam}${c[w] > c[other] ? " 👑" : ""}</span><b>${c[w]}</b><small>${tot ? pct + "% van de klusjes" : "nog niks"}</small></div>`;
+  };
+  $("#duel").innerHTML = card("maarten") + card("femke");
+  const rows = Object.entries(data.klusjes).map(([id, k]) => ({ k, c: counts(since, id) }))
+    .filter(r => r.c.maarten + r.c.femke > 0)
+    .sort((a, b) => (b.c.maarten + b.c.femke) - (a.c.maarten + a.c.femke));
+  $("#perKlus").innerHTML = rows.length ? rows.map(({ k, c }) => {
+    const t = c.maarten + c.femke;
+    return `<div class="rrow"><span>${esc(k.emoji)}</span><span class="nm">${esc(k.naam)}</span>
+      <span class="num" style="color:${P.maarten.kleur}">${c.maarten}</span>
+      <span class="mini"><i style="width:${c.maarten / t * 100}%;background:${P.maarten.kleur}"></i><i style="width:${c.femke / t * 100}%;background:${P.femke.kleur}"></i></span>
+      <span class="num" style="color:${P.femke.kleur}">${c.femke}</span></div>`;
+  }).join("") : `<div class="empty">Nog niks afgevinkt in deze periode.</div>`;
+}
+
+function renderHist() {
+  const list = logList().slice(0, 300);
+  if (!list.length) { $("#hist").innerHTML = `<div class="empty">Nog niks afgevinkt. Het logboek vult zich vanzelf.</div>`; return; }
+  let html = "", day = null;
+  for (const e of list) {
+    const d = startOfDay(e.t);
+    if (d !== day) {
+      if (day !== null) html += `</div>`;
+      day = d;
+      const diff = Math.round((startOfDay(Date.now()) - d) / DAG);
+      const lbl = diff === 0 ? "Vandaag" : diff === 1 ? "Gisteren" : new Date(d).toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" });
+      html += `<div class="day">${lbl}</div><div class="rows">`;
+    }
+    const k = data.klusjes[e.k] || { naam: e.n || "Verwijderd klusje", emoji: "🗂️" };
+    const tijd = new Date(e.t).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+    html += `<div class="hrow"><span class="e">${esc(k.emoji)}</span><span class="t">${esc(k.naam)}<small>${tijd}</small></span>
+      <span class="pill ${e.w === "maarten" ? "m" : "f"}">${esc(P[e.w]?.naam || "?")}</span>
+      <button class="x" data-del="${e.id}" aria-label="Verwijderen">×</button></div>`;
+  }
+  $("#hist").innerHTML = html + `</div>`;
+}
+
+/* ---------- acties ---------- */
+let undoId = null, toastT = null;
+function done(kid, wie, btn) {
+  const k = data.klusjes[kid]; if (!k) return;
+  const id = uid();
+  write("log/" + id, { k: kid, w: wie, t: Date.now(), n: k.naam, door: me || wie });
+  if (navigator.vibrate) navigator.vibrate(25);
+  const b = document.querySelector(`[data-done="${kid}"][data-wie="${wie}"]`);
+  if (b) b.classList.add("pop");
+  undoId = id;
+  toast(`${k.emoji} ${k.naam} – ${P[wie].naam} ✓`);
+}
+function toast(msg) {
+  $("#toastMsg").textContent = msg;
+  $("#toast").classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => $("#toast").classList.remove("show"), 4500);
+}
+$("#toastUndo").onclick = () => {
+  if (undoId) write("log/" + undoId, null);
+  undoId = null; $("#toast").classList.remove("show");
+};
+
+/* ---------- sheets ---------- */
+const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰"];
+
+function openSheet(html) { $("#toast").classList.remove("show"); $("#sheet").innerHTML = `<div class="grab"></div>` + html; $("#sheet").classList.add("open"); $("#shade").classList.add("open"); }
+function closeSheet() { $("#sheet").classList.remove("open"); $("#shade").classList.remove("open"); }
+$("#shade").onclick = closeSheet;
+
+function editSheet(kid) {
+  const k = kid ? data.klusjes[kid] : { naam: "", emoji: "🧹", elke: 7 };
+  let emoji = k.emoji, elke = k.elke ?? 0;
+  const c = kid ? counts(0, kid) : null;
+  openSheet(`<h2>${kid ? "Klusje aanpassen" : "Nieuw klusje"}</h2>
+    <label class="f">Naam</label><input class="inp" id="kNaam" value="${esc(k.naam)}" placeholder="Bijv. ramen lappen" maxlength="40">
+    <label class="f">Icoon</label><div class="emojis" id="kEmo">${EMOJIS.map(e => `<button data-e="${e}" class="${e === emoji ? "on" : ""}">${e}</button>`).join("")}</div>
+    <label class="f">Hoe vaak?</label><div class="freq" id="kFreq">${FREQ.map(([n, l]) => `<button class="chip ${n === elke ? "on" : ""}" data-n="${n}">${l}</button>`).join("")}</div>
+    ${c ? `<p class="note">Totaal gedaan: ${P.maarten.naam} ${c.maarten}× · ${P.femke.naam} ${c.femke}×</p>` : ""}
+    <button class="btn primary" id="kSave">Opslaan</button>
+    ${kid ? `<button class="btn danger" id="kDel">Klusje verwijderen</button>` : ""}`);
+  $("#kEmo").onclick = e => { const b = e.target.closest("[data-e]"); if (!b) return; emoji = b.dataset.e; $("#kEmo").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
+  $("#kFreq").onclick = e => { const b = e.target.closest("[data-n]"); if (!b) return; elke = +b.dataset.n; $("#kFreq").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
+  $("#kSave").onclick = () => {
+    const naam = $("#kNaam").value.trim(); if (!naam) { $("#kNaam").focus(); return; }
+    write("klusjes/" + (kid || uid()), { naam, emoji, elke, v: k.v ?? Object.keys(data.klusjes).length });
+    closeSheet();
+  };
+  if (kid) $("#kDel").onclick = () => {
+    if (!confirm(`"${k.naam}" verwijderen? De historie blijft bewaard.`)) return;
+    write("klusjes/" + kid, null); closeSheet();
+  };
+  if (!kid) setTimeout(() => $("#kNaam").focus(), 260);
+}
+
+function settingsSheet(first) {
+  const rules = `{\n  "rules": {\n    "huishoudens": {\n      "${code()}": { ".read": true, ".write": true }\n    }\n  }\n}`;
+  openSheet(`<h2>${first ? "Wie ben jij?" : "Instellingen"}</h2>
+    <div class="pick2" id="meP">${WIE.map(w => `<button class="${w === "maarten" ? "m" : "f"} ${me === w ? "on" : ""}" data-me="${w}">${P[w].naam}</button>`).join("")}</div>
+    <p class="note">Dit bepaalt alleen de begroeting. Afvinken doe je altijd met de M- of F-knop, dus je kunt ook voor de ander aankruisen.</p>
+    ${first ? "" : `
+    <label class="f">Koppeling tussen de telefoons</label>
+    <p class="note">${url() ? (online ? "🟢 Live gekoppeld." : "🟠 Gekoppeld, maar nu geen verbinding. Afvinken wordt later verstuurd.") : "⚪ Nog niet gekoppeld: alles staat alleen op dit toestel."}
+    ${pending.length ? `<br>${pending.length} wijziging(en) wachten op verzending.` : ""}</p>
+    <label class="f">Database-adres (alleen invullen als het niet al werkt)</label>
+    <input class="inp" id="dbUrl" value="${esc(load("dbUrl", ""))}" placeholder="${esc(CFG.FIREBASE_URL || "https://…firebasedatabase.app")}" inputmode="url" autocapitalize="off" autocorrect="off">
+    <p class="note">Huis-code: <code>${esc(code())}</code></p>
+    <button class="btn ghost" id="dbSave">Koppeling opslaan</button>
+    <details style="margin-top:14px"><summary class="note" style="cursor:pointer">Database-regels voor Firebase</summary><p class="note"><code style="white-space:pre;display:block;padding:10px">${esc(rules)}</code></p></details>`}`);
+  $("#meP").onclick = e => {
+    const b = e.target.closest("[data-me]"); if (!b) return;
+    me = b.dataset.me; save("ik", me);
+    $("#meP").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    render(); if (first) setTimeout(closeSheet, 250);
+  };
+  if (!first) $("#dbSave").onclick = () => {
+    save("dbUrl", $("#dbUrl").value.trim());
+    server = {}; save("server", server); seeded = false; save("seeded", false);
+    connect(); rebuild(); render(); closeSheet();
+  };
+}
+
+/* ---------- events ---------- */
+document.body.addEventListener("click", e => {
+  const t = e.target.closest("[data-done],[data-edit],[data-add],[data-filter],[data-per],[data-del],[data-tab]");
+  if (!t) return;
+  if (t.dataset.done) return done(t.dataset.done, t.dataset.wie, t);
+  if (t.dataset.edit) return editSheet(t.dataset.edit);
+  if (t.hasAttribute("data-add")) return editSheet(null);
+  if (t.dataset.filter) { filter = t.dataset.filter; return render(); }
+  if (t.dataset.per) { periode = t.dataset.per; return render(); }
+  if (t.dataset.del) {
+    const e2 = data.log[t.dataset.del]; if (!e2) return;
+    if (confirm("Deze afvinking verwijderen?")) write("log/" + t.dataset.del, null);
+    return;
+  }
+  if (t.dataset.tab) {
+    tab = t.dataset.tab;
+    document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("on", b === t));
+    ["klusjes", "score", "historie"].forEach(v => $("#v-" + v).classList.toggle("hidden", v !== tab));
+    $("#title").textContent = { klusjes: "Klusjes", score: "Wie doet het meest?", historie: "Historie" }[tab];
+    window.scrollTo(0, 0); render();
+  }
+});
+$("#gearBtn").onclick = () => settingsSheet(false);
+
+/* ---------- start ---------- */
+if (!url()) seedIfEmpty();          // lokaal: meteen standaard klusjes
+rebuild(); render(); connect(); flush();
+if (!me) setTimeout(() => settingsSheet(true), 300);
+setInterval(render, 60000);          // "vandaag/morgen" bijwerken na middernacht
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
