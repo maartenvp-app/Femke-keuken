@@ -3,7 +3,7 @@
 // "https://klusjes-maarten-default-rtdb.europe-west1.firebasedatabase.app"
 // Leeg = de app werkt alleen lokaal op dit toestel.
 window.KLUSJES_CONFIG = {
-  FIREBASE_URL: "",
+  FIREBASE_URL: "https://klusjes-e6443-default-rtdb.europe-west1.firebasedatabase.app",
   HUIS_CODE: "ikx9hlz967qsb7s4wqci",
   PERSONEN: {
     maarten: { naam: "Maarten", kleur: "#3f6fb5", zacht: "#dce7f6" },
