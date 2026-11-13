@@ -288,8 +288,25 @@ function write(path, val) {
 let es = null, flushing = false, online = false, retryT = null;
 const base = () => url() + "/huishoudens/" + encodeURIComponent(code());
 
+function getPath(obj, path) {
+  let o = obj;
+  for (const k of path.split("/").filter(Boolean)) { if (!o || typeof o !== "object") return undefined; o = o[k]; }
+  return o;
+}
+// Standaard-klusjes (ook uit oudere versies, toen er nog geen uitleg-veld was) mogen nooit iets
+// overschrijven dat al in de database staat: alleen toevoegen als het klusje nog niet bestaat.
+const isSeed = op => op.seed || (op.m === "PUT" && /^klusjes\/s-/.test(op.p) && op.d && !("uitleg" in op.d));
+function dropStaleSeeds() {
+  const voor = pending.length;
+  pending = pending.filter(op => !(isSeed(op) && getPath(server, op.p) !== undefined));
+  if (pending.length !== voor) save("pending", pending);
+}
+let loaded = false;   // pas versturen als de actuele stand van de database binnen is
+
 async function flush() {
-  if (!url() || flushing || !pending.length) return;
+  if (!url() || flushing || !pending.length || !loaded) return;
+  dropStaleSeeds();
+  if (!pending.length) return;
   flushing = true;
   try {
     while (pending.length) {
@@ -309,6 +326,7 @@ async function flush() {
 
 function connect() {
   if (es) { es.close(); es = null; }
+  loaded = false;
   setDot();
   if (!url()) return;
   es = new EventSource(base() + ".json");
@@ -323,8 +341,9 @@ function connect() {
     }
     online = true; setDot();
     save("server", server);
+    if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
     seedIfEmpty(); migreer();
-    rebuild(); render();
+    rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
   es.addEventListener("patch", onData("patch"));
@@ -361,7 +380,7 @@ function seedIfEmpty() {
   seeded = true; save("seeded", true);
   if (server.klusjes && Object.keys(server.klusjes).length) return;
   STANDAARD.forEach(([id, naam, emoji, elke], i) => {
-    pending.push({ m: "PUT", p: "klusjes/s-" + id, d: { naam, emoji, elke, v: i, ...(elke === 0 && /was/i.test(naam) ? { uitleg: "Draaien als de wasmand vol is." } : {}) } });
+    pending.push({ m: "PUT", seed: true, p: "klusjes/s-" + id, d: { naam, emoji, elke, v: i, ...(elke === 0 && /was/i.test(naam) ? { uitleg: "Draaien als de wasmand vol is." } : {}) } });
   });
   save("pending", pending); flush();
 }
