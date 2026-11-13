@@ -25,6 +25,8 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        s.setUseWideViewPort(true);        // viewport-instelling van de pagina volgen
+        s.setLoadWithOverviewMode(true);
         web.setWebChromeClient(new WebChromeClient()); // nodig voor bevestig-vragen
         web.setWebViewClient(new WebViewClient() {
             @Override

@@ -41,7 +41,9 @@ header.top h1{font-size:30px;line-height:1.1;margin-top:3px}
 .strip .row{display:flex;gap:8px;justify-content:space-between;align-items:baseline;font-size:14px}
 .strip .row b{font-family:Fraunces,serif;font-size:24px;font-weight:700}
 .strip small{opacity:.65;font-size:12.5px}
-.bar{height:10px;border-radius:99px;background:#ffffff22;overflow:hidden;display:flex;margin:9px 0 2px}
+.barwrap{position:relative;margin:9px 0 6px}
+.bar{height:10px;border-radius:99px;background:#ffffff22;overflow:hidden;display:flex}
+.doel{position:absolute;top:-4px;width:3px;height:18px;margin-left:-1.5px;background:#fff;border-radius:2px;box-shadow:0 0 0 2px #22251f}
 .bar i{display:block;height:100%;transition:width .4s}
 
 /* chips */
@@ -235,6 +237,20 @@ function rebuild() {
   for (const op of pending) setPath(data, op.p, op.m === "DELETE" ? null : op.d);
   data.klusjes = data.klusjes || {};
   data.log = data.log || {};
+  data.instellingen = data.instellingen || {};
+}
+// Eerlijke verdeling: welk deel van de klusjes Maarten als doel heeft (Femke de rest).
+const aandeelM = () => { const v = data.instellingen.aandeelM; return typeof v === "number" ? v : 40; };
+function eerlijk(c) {
+  const tot = c.maarten + c.femke, tM = aandeelM() / 100;
+  const verschil = c.maarten - tot * tM;          // + = Maarten doet meer dan zijn deel
+  const r = Math.round(Math.abs(verschil));
+  let tekst = "Precies volgens afspraak 👌", wie = null;
+  if (!tot) tekst = "Nog niks gedaan";
+  else if (r >= 1) { wie = verschil > 0 ? "maarten" : "femke";
+    const ander = wie === "maarten" ? "femke" : "maarten";
+    tekst = `${P[ander].naam} loopt ${r} klusje${r > 1 ? "s" : ""} achter`; }
+  return { tot, tM, verschil, tekst, wie };
 }
 function write(path, val) {
   pending.push(val === null ? { m: "DELETE", p: path } : { m: "PUT", p: path, d: val });
@@ -379,9 +395,11 @@ function render() {
 
 function stripHtml(since, label) {
   const c = counts(since); const tot = c.maarten + c.femke;
-  const pm = tot ? c.maarten / tot * 100 : 50;
+  const pm = tot ? c.maarten / tot * 100 : aandeelM();
+  const e = eerlijk(c);
   return `<div class="row"><span>${P.maarten.naam} <b>${c.maarten}</b></span><small>${label}</small><span><b>${c.femke}</b> ${P.femke.naam}</span></div>
-    <div class="bar"><i style="width:${pm}%;background:${P.maarten.kleur}"></i><i style="width:${100 - pm}%;background:${P.femke.kleur}"></i></div>`;
+    <div class="barwrap"><div class="bar"><i style="width:${pm}%;background:${P.maarten.kleur}"></i><i style="width:${100 - pm}%;background:${P.femke.kleur}"></i></div><span class="doel" style="left:${aandeelM()}%"></span></div>
+    <small>Afspraak ${aandeelM()}/${100 - aandeelM()} · ${e.tekst}</small>`;
 }
 
 function renderKlusjes() {
@@ -415,13 +433,16 @@ function renderScore() {
   $("#seg").innerHTML = PER.map(([k, l]) => `<button class="${periode === k ? "on" : ""}" data-per="${k}">${l}</button>`).join("");
   const since = periodStart(periode);
   const c = counts(since); const tot = c.maarten + c.femke;
+  const e = eerlijk(c);
   const card = w => {
     const pct = tot ? Math.round(c[w] / tot * 100) : 0;
-    const other = w === "maarten" ? "femke" : "maarten";
-    return `<div class="p ${c[w] > c[other] ? "lead" : ""}" style="background:${P[w].zacht};color:${P[w].kleur}">
-      <span>${P[w].naam}${c[w] > c[other] ? " 👑" : ""}</span><b>${c[w]}</b><small>${tot ? pct + "% van de klusjes" : "nog niks"}</small></div>`;
+    const doel = w === "maarten" ? aandeelM() : 100 - aandeelM();
+    const top = e.wie === w;
+    return `<div class="p ${top ? "lead" : ""}" style="background:${P[w].zacht};color:${P[w].kleur}">
+      <span>${P[w].naam}${top ? " 👑" : ""}</span><b>${c[w]}</b><small>${tot ? pct + "% · doel " + doel + "%" : "doel " + doel + "%"}</small></div>`;
   };
-  $("#duel").innerHTML = card("maarten") + card("femke");
+  $("#duel").innerHTML = card("maarten") + card("femke") +
+    `<p class="note" style="grid-column:1/-1;margin:2px 2px 0">Eerlijk volgens afspraak ${aandeelM()}/${100 - aandeelM()}: <b>${e.tekst}</b>. De kroon gaat naar wie meer doet dan zijn/haar deel.</p>`;
   const rows = Object.entries(data.klusjes).map(([id, k]) => ({ k, c: counts(since, id) }))
     .filter(r => r.c.maarten + r.c.femke > 0)
     .sort((a, b) => (b.c.maarten + b.c.femke) - (a.c.maarten + a.c.femke));
@@ -516,9 +537,15 @@ function settingsSheet(first) {
     <div class="pick2" id="meP">${WIE.map(w => `<button class="${w === "maarten" ? "m" : "f"} ${me === w ? "on" : ""}" data-me="${w}">${P[w].naam}</button>`).join("")}</div>
     <p class="note">Dit bepaalt alleen de begroeting. Afvinken doe je altijd met de M- of F-knop, dus je kunt ook voor de ander aankruisen.</p>
     ${first ? "" : `
+    <label class="f">Eerlijke verdeling</label>
+    <div class="rows" style="padding:12px 14px">
+      <div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px"><span style="color:${P.maarten.kleur}" id="aM">${P.maarten.naam} ${aandeelM()}%</span><span style="color:${P.femke.kleur}" id="aF">${100 - aandeelM()}% ${P.femke.naam}</span></div>
+      <input type="range" id="aandeel" min="20" max="80" step="5" value="${aandeelM()}" style="width:100%;margin-top:10px;accent-color:var(--accent)">
+    </div>
+    <p class="note">Wie meer tijd heeft, doet een groter deel. Het scorebord kijkt of ieder zijn eigen deel haalt. Geldt voor jullie allebei.</p>
     <label class="f">Koppeling tussen de telefoons</label>
     <p class="note">${url() ? (online ? "🟢 Live gekoppeld." : "🟠 Gekoppeld, maar nu geen verbinding. Afvinken wordt later verstuurd.") : "⚪ Nog niet gekoppeld: alles staat alleen op dit toestel."}
-    ${pending.length ? `<br>${pending.length} wijziging(en) wachten op verzending.` : ""}</p>
+    ${url() && pending.length ? `<br>${pending.length} wijziging(en) wachten op verzending.` : ""}</p>
     <label class="f">Database-adres (alleen invullen als het niet al werkt)</label>
     <input class="inp" id="dbUrl" value="${esc(load("dbUrl", ""))}" placeholder="${esc(CFG.FIREBASE_URL || "https://…firebasedatabase.app")}" inputmode="url" autocapitalize="off" autocorrect="off">
     <p class="note">Huis-code: <code>${esc(code())}</code></p>
@@ -530,6 +557,11 @@ function settingsSheet(first) {
     $("#meP").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
     render(); if (first) setTimeout(closeSheet, 250);
   };
+  if (!first) {
+    const sl = $("#aandeel");
+    sl.oninput = () => { $("#aM").textContent = P.maarten.naam + " " + sl.value + "%"; $("#aF").textContent = (100 - sl.value) + "% " + P.femke.naam; };
+    sl.onchange = () => write("instellingen/aandeelM", +sl.value);
+  }
   if (!first) $("#dbSave").onclick = () => {
     save("dbUrl", $("#dbUrl").value.trim());
     server = {}; save("server", server); seeded = false; save("seeded", false);
@@ -555,7 +587,7 @@ document.body.addEventListener("click", e => {
     tab = t.dataset.tab;
     document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("on", b === t));
     ["klusjes", "score", "historie"].forEach(v => $("#v-" + v).classList.toggle("hidden", v !== tab));
-    $("#title").textContent = { klusjes: "Klusjes", score: "Wie doet het meest?", historie: "Historie" }[tab];
+    $("#title").textContent = { klusjes: "Klusjes", score: "Wie doet zijn deel?", historie: "Historie" }[tab];
     window.scrollTo(0, 0); render();
   }
 });
