@@ -150,6 +150,23 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
   .who{width:100%;padding-left:55px;gap:8px}
   .who button{flex:1;height:40px;border-radius:12px}
 }
+textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
+.uitleg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;white-space:pre-wrap;line-height:1.5;font-size:15px;-webkit-user-select:text;user-select:text}
+.uitleg.leeg{color:var(--muted);font-style:italic}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 2px}
+.btnrow{display:flex;gap:10px}.btnrow .btn{margin-top:14px}
+.plan{font-size:12.5px;font-weight:600;color:var(--accent)}
+.vandaag{background:var(--accent-soft);border-radius:var(--radius);padding:12px 14px;margin-top:14px}
+.vandaag h3{font-family:Inter,sans-serif;font-size:14px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.prow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.prow:last-child{border-bottom:0}
+.prow .e{font-size:21px;width:28px;text-align:center}
+.prow .t{flex:1;min-width:0;font-size:15px;text-align:left}
+.prow .t small{display:block;color:var(--muted);font-size:12.5px}
+.pill.s{background:#eeece4;color:var(--muted)}
+.pill.late{background:var(--late-soft);color:var(--late)}
+.fab{display:block;width:100%;margin-top:14px;background:var(--ink);color:#fff;border-radius:14px;padding:14px;font-weight:600}
+.quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .hidden{display:none!important}
 </style>
 </head>
@@ -167,9 +184,16 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
   <!-- KLUSJES -->
   <section id="v-klusjes">
     <div class="strip" id="strip"></div>
+    <div id="vandaag"></div>
     <div class="filters" id="filters"></div>
     <div class="list" id="list"></div>
-    <p class="hint">Tik op <b>M</b> of <b>F</b> als die het klusje gedaan heeft. Tik op een klusje om het aan te passen.</p>
+    <p class="hint">Tik op <b>M</b> of <b>F</b> als die het klusje gedaan heeft. Tik op een klusje voor uitleg, inplannen of aanpassen.</p>
+  </section>
+
+  <!-- PLANNING -->
+  <section id="v-planning" class="hidden">
+    <button class="fab" data-plan="">📅 Klusje inplannen</button>
+    <div id="planlist"></div>
   </section>
 
   <!-- SCORE -->
@@ -188,6 +212,7 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
 
 <nav class="tabs">
   <button data-tab="klusjes" class="on"><span>✅</span>Klusjes</button>
+  <button data-tab="planning"><span>📅</span>Planning</button>
   <button data-tab="score"><span>🏆</span>Score</button>
   <button data-tab="historie"><span>📜</span>Historie</button>
 </nav>
@@ -238,6 +263,7 @@ function rebuild() {
   data.klusjes = data.klusjes || {};
   data.log = data.log || {};
   data.instellingen = data.instellingen || {};
+  data.planning = data.planning || {};
 }
 // Eerlijke verdeling: welk deel van de klusjes Maarten als doel heeft (Femke de rest).
 const aandeelM = () => { const v = data.instellingen.aandeelM; return typeof v === "number" ? v : 40; };
@@ -297,7 +323,7 @@ function connect() {
     }
     online = true; setDot();
     save("server", server);
-    seedIfEmpty();
+    seedIfEmpty(); migreer();
     rebuild(); render();
   };
   es.addEventListener("put", onData("put"));
@@ -320,7 +346,7 @@ function setDot(msg) {
 /* ---------- standaard klusjes (vaste id's: twee keer toevoegen geeft geen dubbele) ---------- */
 const STANDAARD = [
   // wekelijks
-  ["wittewas", "Witte was", "🤍", 7], ["normalewas", "Normale was", "👕", 7], ["handdoeken", "Handdoeken was", "🧖", 7],
+  ["wittewas", "Witte was", "🤍", 0], ["normalewas", "Normale was", "👕", 0], ["handdoeken", "Handdoeken was", "🧖", 0],
   ["stofzuigen", "Stofzuigen", "🧹", 7], ["dweilen", "Dweilen", "🪣", 7], ["wc", "Wc schoonmaken", "🚽", 7],
   ["vouwen", "Was opvouwen", "🧺", 7], ["strijken", "Strijken", "👔", 7], ["afstoffen", "Afstoffen met doekje", "🪶", 7],
   ["badmeubel", "Badkamermeubel schoonmaken", "🧽", 7], ["spiegel", "Spiegel badkamer schoonmaken", "🪞", 7],
@@ -335,8 +361,19 @@ function seedIfEmpty() {
   seeded = true; save("seeded", true);
   if (server.klusjes && Object.keys(server.klusjes).length) return;
   STANDAARD.forEach(([id, naam, emoji, elke], i) => {
-    pending.push({ m: "PUT", p: "klusjes/s-" + id, d: { naam, emoji, elke, v: i } });
+    pending.push({ m: "PUT", p: "klusjes/s-" + id, d: { naam, emoji, elke, v: i, ...(elke === 0 && /was/i.test(naam) ? { uitleg: "Draaien als de wasmand vol is." } : {}) } });
   });
+  save("pending", pending); flush();
+}
+
+/* eenmalige aanpassing: was draaien als de mand vol is, niet wekelijks */
+function migreer() {
+  if (!server.klusjes || (server.instellingen && server.instellingen.m1)) return;
+  for (const id of ["s-wittewas", "s-normalewas", "s-handdoeken"]) {
+    const k = server.klusjes[id];
+    if (k && k.elke === 7) pending.push({ m: "PUT", p: "klusjes/" + id, d: { ...k, elke: 0, uitleg: k.uitleg || "Draaien als de wasmand vol is." } });
+  }
+  pending.push({ m: "PUT", p: "instellingen/m1", d: true });
   save("pending", pending); flush();
 }
 
@@ -380,6 +417,19 @@ function ago(t) {
 const FREQ = [[1, "Elke dag"], [2, "Om de dag"], [3, "Elke 3 dagen"], [7, "Elke week"], [14, "Om de week"], [30, "Elke maand"], [61, "Elke 2 maanden"], [91, "Elk kwartaal"], [182, "Elk half jaar"], [365, "Elk jaar"], [0, "Wanneer nodig"]];
 const freqTxt = n => { const f = FREQ.find(x => x[0] === n); return f ? f[1].toLowerCase() : "elke " + n + " dagen"; };
 const isPeriodiek = k => !k.elke || k.elke > 14;
+const dkey = t => { const d = new Date(t); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+const vandaagKey = () => dkey(Date.now());
+const keyToTime = k => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d).getTime(); };
+function dagNaam(k) {
+  const diff = Math.round((keyToTime(k) - startOfDay(Date.now())) / DAG);
+  if (diff === 0) return "Vandaag"; if (diff === 1) return "Morgen"; if (diff === -1) return "Gisteren";
+  return new Date(keyToTime(k)).toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" }).replace(/^./, c => c.toUpperCase());
+}
+function planList(kid) {
+  return Object.entries(data.planning).map(([id, x]) => ({ id, ...x }))
+    .filter(x => data.klusjes[x.k] && (!kid || x.k === kid)).sort((a, b) => a.datum.localeCompare(b.datum));
+}
+const wieTxt = w => w ? P[w].naam : "Samen / wie kan";
 
 /* ---------- weergave ---------- */
 let tab = "klusjes", periode = "week", filter = "alles";
@@ -390,6 +440,7 @@ function render() {
   $("#hello").textContent = naam ? "Hoi " + naam + "!" : "Hoi!";
   if (tab === "klusjes") renderKlusjes();
   if (tab === "score") renderScore();
+  if (tab === "planning") renderPlanning();
   if (tab === "historie") renderHist();
 }
 
@@ -404,6 +455,9 @@ function stripHtml(since, label) {
 
 function renderKlusjes() {
   $("#strip").innerHTML = stripHtml(periodStart("week"), "deze week");
+  const vk = vandaagKey();
+  const nu = planList().filter(x => x.datum <= vk);
+  $("#vandaag").innerHTML = nu.length ? `<div class="vandaag"><h3>📅 Gepland voor vandaag</h3>${nu.map(planRow).join("")}</div>` : "";
   $("#filters").innerHTML = FILTERS.map(([k, l]) => `<button class="chip ${filter === k ? "on" : ""}" data-filter="${k}">${l}</button>`).join("");
   const since = periodStart("maand");
   let items = Object.entries(data.klusjes).map(([id, k]) => ({ id, k, s: status(k, id) }));
@@ -413,11 +467,11 @@ function renderKlusjes() {
   items.sort((a, b) => a.s.order - b.s.order || (a.k.v ?? 99) - (b.k.v ?? 99) || a.k.naam.localeCompare(b.k.naam));
   const html = items.map(({ id, k, s }) => {
     const c = counts(since, id);
-    const lastTxt = s.last ? `${ago(s.last.t)} · ${esc(P[s.last.w]?.naam || "?")}` : freqTxt(k.elke).replace(/^./, c => c.toUpperCase());
+    const lastTxt = s.last ? `${ago(s.last.t)} · ${esc(P[s.last.w]?.naam || "?")}` : (!k.elke && k.uitleg ? esc(k.uitleg.split("\n")[0]) : freqTxt(k.elke).replace(/^./, c => c.toUpperCase()));
     return `<div class="card">
-      <button class="main" data-edit="${id}">
+      <button class="main" data-open="${id}">
         <div class="emoji">${esc(k.emoji || "✨")}</div>
-        <div class="txt"><h3>${esc(k.naam)}</h3><p>${lastTxt}</p><span class="tag ${s.cls}">${s.label}</span></div>
+        <div class="txt"><h3>${esc(k.naam)}${k.uitleg ? ` <span style="font-size:13px">📝</span>` : ""}</h3><p>${lastTxt}</p><span class="tag ${s.cls}">${s.label}</span>${(() => { const pl = planList(id)[0]; return pl ? ` <span class="plan">📅 ${dagNaam(pl.datum).split(" ")[0].toLowerCase()} · ${esc(wieTxt(pl.wie))}</span>` : ""; })()}</div>
       </button>
       <div class="who">
         <button class="m" data-done="${id}" data-wie="maarten" aria-label="${P.maarten.naam} deed ${esc(k.naam)}">M${c.maarten ? `<span class="n">${c.maarten}</span>` : ""}</button>
@@ -426,6 +480,26 @@ function renderKlusjes() {
   }).join("");
   $("#list").innerHTML = (html || `<div class="empty">${filter === "nu" ? "Niks dat nu moet. Lekker bezig! 🎉" : "Nog geen klusjes."}</div>`)
     + `<button class="add-card" data-add>＋ Klusje toevoegen</button>`;
+}
+
+function planRow(x) {
+  const k = data.klusjes[x.k]; const late = x.datum < vandaagKey();
+  return `<div class="prow"><span class="e">${esc(k.emoji)}</span>
+    <button class="t" data-open="${x.k}">${esc(k.naam)}<small>${late ? "Gepland " + dagNaam(x.datum).toLowerCase() : ""}</small></button>
+    <span class="pill ${x.wie === "maarten" ? "m" : x.wie === "femke" ? "f" : "s"}">${esc(x.wie ? P[x.wie].naam : "Samen")}</span>
+    <button class="x" data-unplan="${x.id}" aria-label="Uit planning halen">×</button></div>`;
+}
+function renderPlanning() {
+  const list = planList();
+  if (!list.length) { $("#planlist").innerHTML = `<div class="empty">Nog niks ingepland. Plan een klusje op een dag en kies wie het doet.</div>`; return; }
+  let html = "", dag = null;
+  const vk = vandaagKey();
+  for (const x of list) {
+    const label = x.datum < vk ? "Te laat" : dagNaam(x.datum);
+    if (label !== dag) { if (dag !== null) html += "</div>"; dag = label; html += `<div class="day">${label}</div><div class="rows">`; }
+    html += planRow(x);
+  }
+  $("#planlist").innerHTML = html + "</div>";
 }
 
 function renderScore() {
@@ -483,6 +557,8 @@ function done(kid, wie, btn) {
   const k = data.klusjes[kid]; if (!k) return;
   const id = uid();
   write("log/" + id, { k: kid, w: wie, t: Date.now(), n: k.naam, door: me || wie });
+  const pl = planList(kid).find(x => x.datum <= dkey(Date.now() + 7 * DAG));
+  if (pl) write("planning/" + pl.id, null);
   if (navigator.vibrate) navigator.vibrate(25);
   const b = document.querySelector(`[data-done="${kid}"][data-wie="${wie}"]`);
   if (b) b.classList.add("pop");
@@ -513,6 +589,8 @@ function editSheet(kid) {
   openSheet(`<h2>${kid ? "Klusje aanpassen" : "Nieuw klusje"}</h2>
     <label class="f">Naam</label><input class="inp" id="kNaam" value="${esc(k.naam)}" placeholder="Bijv. ramen lappen" maxlength="40">
     <label class="f">Icoon</label><div class="emojis" id="kEmo">${EMOJIS.map(e => `<button data-e="${e}" class="${e === emoji ? "on" : ""}">${e}</button>`).join("")}</div>
+    <label class="f">Uitleg: hoe doe je het?</label>
+    <textarea class="inp" id="kUitleg" placeholder="Bijv. welk programma, welke temperatuur, waar staat het schoonmaakmiddel…" maxlength="1000">${esc(k.uitleg || "")}</textarea>
     <label class="f">Hoe vaak?</label><div class="freq" id="kFreq">${FREQ.map(([n, l]) => `<button class="chip ${n === elke ? "on" : ""}" data-n="${n}">${l}</button>`).join("")}</div>
     ${c ? `<p class="note">Totaal gedaan: ${P.maarten.naam} ${c.maarten}× · ${P.femke.naam} ${c.femke}×</p>` : ""}
     <button class="btn primary" id="kSave">Opslaan</button>
@@ -521,14 +599,60 @@ function editSheet(kid) {
   $("#kFreq").onclick = e => { const b = e.target.closest("[data-n]"); if (!b) return; elke = +b.dataset.n; $("#kFreq").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
   $("#kSave").onclick = () => {
     const naam = $("#kNaam").value.trim(); if (!naam) { $("#kNaam").focus(); return; }
-    write("klusjes/" + (kid || uid()), { naam, emoji, elke, v: k.v ?? Object.keys(data.klusjes).length });
+    write("klusjes/" + (kid || uid()), { naam, emoji, elke, uitleg: $("#kUitleg").value.trim(), v: k.v ?? Object.keys(data.klusjes).length });
     closeSheet();
   };
   if (kid) $("#kDel").onclick = () => {
     if (!confirm(`"${k.naam}" verwijderen? De historie blijft bewaard.`)) return;
-    write("klusjes/" + kid, null); closeSheet();
+    write("klusjes/" + kid, null);
+    planList(kid).forEach(x => write("planning/" + x.id, null));
+    closeSheet();
   };
   if (!kid) setTimeout(() => $("#kNaam").focus(), 260);
+}
+
+function detailSheet(kid) {
+  const k = data.klusjes[kid]; if (!k) return;
+  const s = status(k, kid), c = counts(0, kid), pl = planList(kid);
+  const recent = logList().filter(e => e.k === kid).slice(0, 4);
+  openSheet(`<h2>${esc(k.emoji)} ${esc(k.naam)}</h2>
+    <div class="meta"><span class="tag ${s.cls}">${s.label}</span><span class="tag none">${freqTxt(k.elke).replace(/^./, x => x.toUpperCase())}</span></div>
+    <label class="f">Zo doe je het</label>
+    <div class="uitleg ${k.uitleg ? "" : "leeg"}">${k.uitleg ? esc(k.uitleg) : "Nog geen uitleg. Tik op Aanpassen om er een te schrijven."}</div>
+    ${pl.length ? `<label class="f">Ingepland</label><div class="rows">${pl.map(planRow).join("")}</div>` : ""}
+    <label class="f">Laatst gedaan</label>
+    <p class="note" style="margin-top:0">${recent.length ? recent.map(e => `${ago(e.t)} · ${esc(P[e.w]?.naam || "?")}`).join("<br>") : "Nog nooit."}<br>Totaal: ${P.maarten.naam} ${c.maarten}× · ${P.femke.naam} ${c.femke}×</p>
+    <div class="btnrow"><button class="btn ghost" id="dEdit">✏️ Aanpassen</button><button class="btn primary" id="dPlan">📅 Inplannen</button></div>`);
+  $("#dEdit").onclick = () => editSheet(kid);
+  $("#dPlan").onclick = () => planSheet(kid);
+}
+
+function planSheet(kid) {
+  const opts = Object.entries(data.klusjes).sort((a, b) => a[1].naam.localeCompare(b[1].naam));
+  let wie = me || null, datum = vandaagKey();
+  const zat = (() => { const d = new Date(); const add = (6 - d.getDay() + 7) % 7 || 7; return dkey(Date.now() + add * DAG); })();
+  const quick = [["Vandaag", vandaagKey()], ["Morgen", dkey(Date.now() + DAG)], ["Zaterdag", zat], ["Zondag", dkey(keyToTime(zat) + DAG)]];
+  openSheet(`<h2>Klusje inplannen</h2>
+    <label class="f">Klusje</label>
+    <select class="inp" id="pK">${opts.map(([id, k]) => `<option value="${id}" ${id === kid ? "selected" : ""}>${esc(k.emoji)} ${esc(k.naam)}</option>`).join("")}</select>
+    <label class="f">Wanneer?</label>
+    <div class="quick" id="pQ">${quick.map(([l, d]) => `<button class="chip ${d === datum ? "on" : ""}" data-d="${d}">${l}</button>`).join("")}</div>
+    <input class="inp" type="date" id="pD" value="${datum}" min="${vandaagKey()}">
+    <label class="f">Wie doet het?</label>
+    <div class="freq" id="pW">${[["maarten", P.maarten.naam], ["femke", P.femke.naam], ["", "Samen / wie kan"]].map(([w, l]) => `<button class="chip ${(wie || "") === w ? "on" : ""}" data-w="${w}">${l}</button>`).join("")}</div>
+    <button class="btn primary" id="pSave">Inplannen</button>`);
+  const setD = d => { datum = d; $("#pD").value = d; $("#pQ").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.d === d)); };
+  $("#pQ").onclick = e => { const b = e.target.closest("[data-d]"); if (b) setD(b.dataset.d); };
+  $("#pD").onchange = () => setD($("#pD").value);
+  $("#pW").onclick = e => { const b = e.target.closest("[data-w]"); if (!b) return; wie = b.dataset.w || null; $("#pW").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
+  $("#pSave").onclick = () => {
+    if (!datum) return;
+    const k = $("#pK").value;
+    write("planning/" + uid(), { k, datum, wie });
+    closeSheet();
+    toast(`📅 ${data.klusjes[k].naam} – ${dagNaam(datum).toLowerCase()}`);
+    $("#toastUndo").classList.add("hidden"); setTimeout(() => $("#toastUndo").classList.remove("hidden"), 4600);
+  };
 }
 
 function settingsSheet(first) {
@@ -571,10 +695,13 @@ function settingsSheet(first) {
 
 /* ---------- events ---------- */
 document.body.addEventListener("click", e => {
-  const t = e.target.closest("[data-done],[data-edit],[data-add],[data-filter],[data-per],[data-del],[data-tab]");
+  const t = e.target.closest("[data-done],[data-edit],[data-open],[data-plan],[data-unplan],[data-add],[data-filter],[data-per],[data-del],[data-tab]");
   if (!t) return;
   if (t.dataset.done) return done(t.dataset.done, t.dataset.wie, t);
   if (t.dataset.edit) return editSheet(t.dataset.edit);
+  if (t.dataset.open) return detailSheet(t.dataset.open);
+  if (t.hasAttribute("data-plan")) return planSheet(t.dataset.plan || null);
+  if (t.dataset.unplan) { write("planning/" + t.dataset.unplan, null); if ($("#sheet").classList.contains("open") && $("#sheet").querySelector("#dPlan")) closeSheet(); return; }
   if (t.hasAttribute("data-add")) return editSheet(null);
   if (t.dataset.filter) { filter = t.dataset.filter; return render(); }
   if (t.dataset.per) { periode = t.dataset.per; return render(); }
@@ -586,15 +713,15 @@ document.body.addEventListener("click", e => {
   if (t.dataset.tab) {
     tab = t.dataset.tab;
     document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("on", b === t));
-    ["klusjes", "score", "historie"].forEach(v => $("#v-" + v).classList.toggle("hidden", v !== tab));
-    $("#title").textContent = { klusjes: "Klusjes", score: "Wie doet zijn deel?", historie: "Historie" }[tab];
+    ["klusjes", "planning", "score", "historie"].forEach(v => $("#v-" + v).classList.toggle("hidden", v !== tab));
+    $("#title").textContent = { klusjes: "Klusjes", planning: "Planning", score: "Wie doet zijn deel?", historie: "Historie" }[tab];
     window.scrollTo(0, 0); render();
   }
 });
 $("#gearBtn").onclick = () => settingsSheet(false);
 
 /* ---------- start ---------- */
-if (!url()) seedIfEmpty();          // lokaal: meteen standaard klusjes
+if (!url()) { seedIfEmpty(); }          // lokaal: meteen standaard klusjes
 rebuild(); render(); connect(); flush();
 if (!me) setTimeout(() => settingsSheet(true), 300);
 setInterval(render, 60000);          // "vandaag/morgen" bijwerken na middernacht
