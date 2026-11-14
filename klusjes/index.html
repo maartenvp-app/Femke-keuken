@@ -177,6 +177,18 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .bk span{flex:1;font-size:15px}
 .bk small{color:var(--muted);font-size:12.5px;display:block}
 .bk button{font-weight:600;color:var(--accent);padding:6px 4px}
+.zoek{position:relative;margin-top:14px}
+.zoek input{width:100%;font:inherit;font-size:16px;padding:12px 40px 12px 40px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);outline:none;-webkit-appearance:none}
+.zoek input:focus{border-color:var(--accent)}
+.zoek .lup{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:16px;opacity:.55;pointer-events:none}
+.zoek .wis{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;color:var(--muted);font-size:18px}
+.filters.cats{margin-top:12px}
+.filters.stat{margin-top:8px}
+.filters.stat .chip{padding:6px 11px;font-size:13px;background:transparent}
+.filters.stat .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.cat-kop{display:flex;align-items:center;gap:8px;margin:20px 2px 2px;font-family:Fraunces,serif;font-size:19px;font-weight:700}
+.cat-kop small{font-family:Inter,sans-serif;font-size:12.5px;font-weight:600;color:var(--muted);background:#e9e6dc;border-radius:99px;padding:2px 8px}
+.list .cat-kop:first-child{margin-top:4px}
 .hidden{display:none!important}
 </style>
 </head>
@@ -195,7 +207,9 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
   <section id="v-klusjes">
     <div class="strip" id="strip"></div>
     <div id="vandaag"></div>
-    <div class="filters" id="filters"></div>
+    <div class="zoek"><span class="lup">🔍</span><input id="zoek" type="text" enterkeyhint="search" placeholder="Zoek een klusje of uitleg…" autocomplete="off"><button class="wis hidden" id="zoekWis" aria-label="Wissen">×</button></div>
+    <div class="filters cats" id="cats"></div>
+    <div class="filters stat" id="filters"></div>
     <div class="list" id="list"></div>
     <p class="hint">Tik op <b>M</b> of <b>F</b> als die het klusje gedaan heeft. Tik op een klusje voor uitleg, inplannen of aanpassen.</p>
   </section>
@@ -537,8 +551,21 @@ function planList(kid) {
 const wieTxt = w => w ? P[w].naam : "Samen / wie kan";
 
 /* ---------- weergave ---------- */
-let tab = "klusjes", periode = "week", filter = "alles";
+let tab = "klusjes", periode = "week", filter = "alles", cat = "alles", zoek = "";
 const FILTERS = [["alles", "Alles"], ["nu", "Nu te doen"], ["week", "Wekelijks"], ["periodiek", "Periodiek"]];
+const CATS = [["was", "🧺", "Was"], ["schoonmaak", "🧽", "Schoonmaak"], ["keuken", "🍽️", "Keuken"], ["buiten", "🌳", "Buiten"], ["overig", "📦", "Overig"]];
+const CAT_NAAM = Object.fromEntries(CATS.map(([k, e, n]) => [k, e + " " + n]));
+// Categorie raden uit de naam als die nog niet is gekozen (er wordt niks in de database aangepast)
+function catVan(k) {
+  if (k.cat && CAT_NAAM[k.cat]) return k.cat;
+  const n = (k.naam || "").toLowerCase();
+  if (/buiten|tuin|dakgoot|gras|heg|onkruid|terras|schutting|auto|kliko|container|vuilnis/.test(n)) return "buiten";
+  if (/\bwas\b|was |wasmachine|handdoek|strijk|vouw|droger/.test(n) || /was$/.test(n)) return "was";
+  if (/vaatwas|afwas|koelkast|oven|vriezer|keuken|koken|magnetron|boodschap|aanrecht/.test(n)) return "keuken";
+  if (/stofzuig|dweil|wc|toilet|badkamer|spiegel|stof|ramen|poets|schoon|bed|matras|douche|lappen/.test(n)) return "schoonmaak";
+  return "overig";
+}
+const CAT_FILTERS = [["alles", "Alles"], ["binnen", "🏠 Binnen"], ...CATS.map(([k, e, n]) => [k, e + " " + n])];
 
 function render() {
   const naam = me ? P[me].naam : null;
@@ -563,12 +590,17 @@ function renderKlusjes() {
   const vk = vandaagKey();
   const nu = planList().filter(x => x.datum <= vk);
   $("#vandaag").innerHTML = nu.length ? `<div class="vandaag"><h3>📅 Gepland voor vandaag</h3>${nu.map(planRow).join("")}</div>` : "";
+  $("#cats").innerHTML = CAT_FILTERS.map(([k, l]) => `<button class="chip ${cat === k ? "on" : ""}" data-cat="${k}">${l}</button>`).join("");
   $("#filters").innerHTML = FILTERS.map(([k, l]) => `<button class="chip ${filter === k ? "on" : ""}" data-filter="${k}">${l}</button>`).join("");
   const since = periodStart("maand");
   let items = Object.entries(data.klusjes).map(([id, k]) => ({ id, k, s: status(k, id) }));
   if (filter === "nu") items = items.filter(x => x.s.cls === "late" || x.s.cls === "today");
   if (filter === "week") items = items.filter(x => !isPeriodiek(x.k));
   if (filter === "periodiek") items = items.filter(x => isPeriodiek(x.k));
+  if (cat === "binnen") items = items.filter(x => catVan(x.k) !== "buiten");
+  else if (cat !== "alles") items = items.filter(x => catVan(x.k) === cat);
+  const q = zoek.trim().toLowerCase();
+  if (q) items = items.filter(x => (x.k.naam + " " + (x.k.uitleg || "") + " " + CAT_NAAM[catVan(x.k)]).toLowerCase().includes(q));
   items.sort((a, b) => a.s.order - b.s.order || (a.k.v ?? 99) - (b.k.v ?? 99) || a.k.naam.localeCompare(b.k.naam));
   const kaart = ({ id, k, s }) => {
     const c = counts(since, id);
@@ -585,8 +617,11 @@ function renderKlusjes() {
   };
   if (filter === "nu") items = items.filter(x => !x.s.uit);
   const binnen = items.filter(x => !x.s.uit), buiten = items.filter(x => x.s.uit);
-  const html = binnen.map(kaart).join("") + (buiten.length ? `<div class="seizoen-kop">🍂 Buiten seizoen (${buiten.length})</div>` + buiten.map(kaart).join("") : "");
-  $("#list").innerHTML = (html || `<div class="empty">${filter === "nu" ? "Niks dat nu moet. Lekker bezig! 🎉" : "Nog geen klusjes."}</div>`)
+  // gegroepeerd per categorie (behalve bij zoeken of als er maar één categorie gekozen is)
+  const groeperen = !q && (cat === "alles" || cat === "binnen");
+  const groepen = groeperen ? CATS.map(([c]) => [c, binnen.filter(x => catVan(x.k) === c)]).filter(([, l]) => l.length) : [[null, binnen]];
+  const html = groepen.map(([c, l]) => (c ? `<div class="cat-kop">${CAT_NAAM[c]} <small>${l.length}</small></div>` : "") + l.map(kaart).join("")).join("") + (buiten.length ? `<div class="seizoen-kop">🍂 Buiten seizoen (${buiten.length})</div>` + buiten.map(kaart).join("") : "");
+  $("#list").innerHTML = (html || `<div class="empty">${q ? `Niks gevonden voor “${esc(zoek)}”.` : filter === "nu" ? "Niks dat nu moet. Lekker bezig! 🎉" : "Geen klusjes in deze categorie."}</div>`)
     + `<button class="add-card" data-add>＋ Klusje toevoegen</button>`;
 }
 
@@ -694,9 +729,12 @@ function editSheet(kid) {
   const k = kid ? data.klusjes[kid] : { naam: "", emoji: "🧹", elke: 7 };
   let emoji = k.emoji, elke = k.elke ?? 0;
   let maanden = Array.isArray(k.maanden) ? [...k.maanden] : [];
+  let kcat = kid ? catVan(k) : (cat !== "alles" && cat !== "binnen" ? cat : "overig");
   const c = kid ? counts(0, kid) : null;
   openSheet(`<h2>${kid ? "Klusje aanpassen" : "Nieuw klusje"}</h2>
     <label class="f">Naam</label><input class="inp" id="kNaam" value="${esc(k.naam)}" placeholder="Bijv. ramen lappen" maxlength="40">
+    <label class="f">Categorie</label>
+    <div class="freq" id="kCat">${CATS.map(([c, e, n]) => `<button class="chip ${c === kcat ? "on" : ""}" data-c="${c}">${e} ${n}</button>`).join("")}</div>
     <label class="f">Icoon</label><div class="emojis" id="kEmo">${EMOJIS.map(e => `<button data-e="${e}" class="${e === emoji ? "on" : ""}">${e}</button>`).join("")}</div>
     <label class="f">Uitleg: hoe doe je het?</label>
     <textarea class="inp" id="kUitleg" placeholder="Bijv. welk programma, welke temperatuur, waar staat het schoonmaakmiddel…" maxlength="1000">${esc(k.uitleg || "")}</textarea>
@@ -708,12 +746,13 @@ function editSheet(kid) {
     ${kid ? `<button class="btn danger" id="kDel">Klusje verwijderen</button>` : ""}`);
   $("#kEmo").onclick = e => { const b = e.target.closest("[data-e]"); if (!b) return; emoji = b.dataset.e; $("#kEmo").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
   $("#kFreq").onclick = e => { const b = e.target.closest("[data-n]"); if (!b) return; elke = +b.dataset.n; $("#kFreq").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
+  $("#kCat").onclick = e => { const b = e.target.closest("[data-c]"); if (!b) return; kcat = b.dataset.c; $("#kCat").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
   $("#kMnd").onclick = e => { const b = e.target.closest("[data-m]"); if (!b) return; const m = +b.dataset.m;
     maanden = maanden.includes(m) ? maanden.filter(x => x !== m) : [...maanden, m]; b.classList.toggle("on", maanden.includes(m)); };
   $("#kSave").onclick = () => {
     const naam = $("#kNaam").value.trim(); if (!naam) { $("#kNaam").focus(); return; }
     const huidig = kid ? (data.klusjes[kid] || {}) : {};   // alle bestaande velden behouden
-    write("klusjes/" + (kid || uid()), { ...huidig, naam, emoji, elke, uitleg: $("#kUitleg").value.trim(),
+    write("klusjes/" + (kid || uid()), { ...huidig, naam, emoji, elke, cat: kcat, uitleg: $("#kUitleg").value.trim(),
       maanden: maanden.length && maanden.length < 12 ? maanden.sort((a, b) => a - b) : null, v: huidig.v ?? k.v ?? Object.keys(data.klusjes).length });
     closeSheet();
   };
@@ -832,7 +871,7 @@ function settingsSheet(first) {
 
 /* ---------- events ---------- */
 document.body.addEventListener("click", e => {
-  const t = e.target.closest("[data-done],[data-edit],[data-open],[data-plan],[data-unplan],[data-add],[data-filter],[data-per],[data-del],[data-tab]");
+  const t = e.target.closest("[data-cat],[data-done],[data-edit],[data-open],[data-plan],[data-unplan],[data-add],[data-filter],[data-per],[data-del],[data-tab]");
   if (!t) return;
   if (t.dataset.done) return done(t.dataset.done, t.dataset.wie, t);
   if (t.dataset.edit) return editSheet(t.dataset.edit);
@@ -841,6 +880,7 @@ document.body.addEventListener("click", e => {
   if (t.dataset.unplan) { write("planning/" + t.dataset.unplan, null); if ($("#sheet").classList.contains("open") && $("#sheet").querySelector("#dPlan")) closeSheet(); return; }
   if (t.hasAttribute("data-add")) return editSheet(null);
   if (t.dataset.filter) { filter = t.dataset.filter; return render(); }
+  if (t.dataset.cat) { cat = t.dataset.cat; return render(); }
   if (t.dataset.per) { periode = t.dataset.per; return render(); }
   if (t.dataset.del) {
     const e2 = data.log[t.dataset.del]; if (!e2) return;
@@ -856,6 +896,8 @@ document.body.addEventListener("click", e => {
   }
 });
 $("#gearBtn").onclick = () => settingsSheet(false);
+$("#zoek").addEventListener("input", () => { zoek = $("#zoek").value; $("#zoekWis").classList.toggle("hidden", !zoek); render(); });
+$("#zoekWis").onclick = () => { zoek = ""; $("#zoek").value = ""; $("#zoekWis").classList.add("hidden"); render(); };
 
 /* ---------- start ---------- */
 if (!url()) { seedIfEmpty(); }          // lokaal: meteen standaard klusjes
