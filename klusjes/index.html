@@ -210,6 +210,9 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .who.mini button{width:38px;height:38px;font-size:14px}
 .who.mini .m.toeg{box-shadow:0 0 0 2.5px var(--m)}
 .who.mini .f.toeg{box-shadow:0 0 0 2.5px var(--f)}
+.prow.af .t{color:var(--muted)}
+.prow.af .e{opacity:.6}
+.x.terug{font-size:19px;color:var(--accent);font-weight:700}
 .hidden{display:none!important}
 </style>
 </head>
@@ -284,7 +287,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "19";   // moet gelijk zijn aan versie.json
+const VERSIE = "20";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -558,6 +561,7 @@ function maakBackup() {
   if (!loaded || !server.klusjes || !Object.keys(server.klusjes).length) return;
   const dag = vandaagKey(), b = server.backups || {};
   if (b[dag] || pending.some(op => op.p === "backups/" + dag)) return;
+  for (const [id, x] of Object.entries(server.planning || {})) if (x && x.gedaan && x.gedaan.t < Date.now() - 30 * DAG) write("planning/" + id, null);
   write("backups/" + dag, { t: Date.now(), door: me || "?", klusjes: server.klusjes, planning: server.planning || null, instellingen: { aandeelM: server.instellingen?.aandeelM ?? null } });
   Object.keys(b).sort().slice(0, Math.max(0, Object.keys(b).length - 13)).forEach(oud => write("backups/" + oud, null));
 }
@@ -570,7 +574,7 @@ function herstel(bk) {
     if (!nu) { write("klusjes/" + id, k); n++; }
     else if (k.uitleg && !(nu.uitleg || "").trim()) { write("klusjes/" + id + "/uitleg", k.uitleg); n++; }
   }
-  for (const [id, x] of Object.entries(bk.planning || {})) if (!data.planning[id] && x.datum >= vandaagKey()) { write("planning/" + id, x); n++; }
+  for (const [id, x] of Object.entries(bk.planning || {})) if (!data.planning[id] && !x.gedaan && x.datum >= vandaagKey()) { write("planning/" + id, x); n++; }
   for (const [id, e] of Object.entries(bk.log || {})) if (!data.log[id]) { write("log/" + id, e); n++; }
   return n;
 }
@@ -665,9 +669,17 @@ function dagNaam(k) {
   if (diff === 0) return "Vandaag"; if (diff === 1) return "Morgen"; if (diff === -1) return "Gisteren";
   return new Date(keyToTime(k)).toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" }).replace(/^./, c => c.toUpperCase());
 }
+// Een gepland klusje is afgevinkt zolang de bijbehorende afvinking in het logboek staat.
+// Wordt die afvinking gewist (ongedaan, historie), dan staat het klusje vanzelf weer open.
+const isGedaan = x => !!(x.gedaan && x.gedaan.log && data.log[x.gedaan.log]);
+const alleePlanning = (kid) => Object.entries(data.planning).map(([id, x]) => ({ id, ...x }))
+  .filter(x => data.klusjes[x.k] && (!kid || x.k === kid));
 function planList(kid) {
-  return Object.entries(data.planning).map(([id, x]) => ({ id, ...x }))
-    .filter(x => data.klusjes[x.k] && (!kid || x.k === kid)).sort((a, b) => a.datum.localeCompare(b.datum));
+  return alleePlanning(kid).filter(x => !isGedaan(x)).sort((a, b) => a.datum.localeCompare(b.datum));
+}
+function planGedaan() {
+  const grens = Date.now() - 7 * DAG;
+  return alleePlanning().filter(x => isGedaan(x) && x.gedaan.t >= grens).sort((a, b) => b.gedaan.t - a.gedaan.t);
 }
 const wieTxt = w => w ? P[w].naam : "Samen / wie kan";
 
@@ -772,9 +784,18 @@ function renderBoodschappen() {
     <p class="note">Telt mee in de score. ${(() => { const l = lastDone(kid); return l ? "Laatst: " + ago(l.t) + " door " + esc(P[l.w]?.naam || "?") + "." : ""; })()}</p>` : "";
 }
 
+function gedaanRow(x) {
+  const k = data.klusjes[x.k], g = x.gedaan, wn = P[g.w]?.naam || "?";
+  return `<div class="prow af"><span class="e">${esc(k.emoji)}</span>
+    <button class="t" data-open="${x.k}">${esc(k.naam)}<small>${ago(g.t).replace(/^./, c => c.toUpperCase())}${x.wie && x.wie !== g.w ? " · was voor " + esc(P[x.wie].naam) : ""}</small></button>
+    <span class="pill ${g.w === "maarten" ? "m" : "f"}">✓ ${esc(wn)}</span>
+    <button class="x terug" data-heropen="${x.id}" aria-label="Terugzetten">↩︎</button></div>`;
+}
 function renderPlanning() {
-  const list = planList();
-  if (!list.length) { $("#planlist").innerHTML = `<div class="empty">Nog niks ingepland. Plan een klusje op een dag en kies wie het doet.</div>`; return; }
+  const list = planList(), klaar = planGedaan();
+  const klaarHtml = klaar.length ? `<div class="day">✅ Afgevinkt</div><div class="rows">${klaar.map(gedaanRow).join("")}</div>
+    <p class="note">Tik op ↩︎ om een klusje terug te zetten in de planning (de afvinking wordt dan ook uit de score gehaald).</p>` : "";
+  if (!list.length) { $("#planlist").innerHTML = `<div class="empty">${klaar.length ? "Alles van de planning is gedaan 🎉" : "Nog niks ingepland. Plan een klusje op een dag en kies wie het doet."}</div>` + klaarHtml; return; }
   let html = "", dag = null;
   const vk = vandaagKey();
   for (const x of list) {
@@ -782,7 +803,7 @@ function renderPlanning() {
     if (label !== dag) { if (dag !== null) html += "</div>"; dag = label; html += `<div class="day">${label}</div><div class="rows">`; }
     html += planRow(x);
   }
-  $("#planlist").innerHTML = html + "</div>";
+  $("#planlist").innerHTML = html + "</div>" + klaarHtml;
 }
 
 function renderScore() {
@@ -842,8 +863,8 @@ function done(kid, wie, btn, pid) {
   write("log/" + id, { k: kid, w: wie, t: Date.now(), n: k.naam, door: me || wie });
   // afgevinkt vanuit de planning: precies dat item weghalen, anders het eerstvolgende binnen een week
   const pl = pid ? planList(kid).find(x => x.id === pid) : planList(kid).find(x => x.datum <= dkey(Date.now() + 7 * DAG));
-  if (pl) write("planning/" + pl.id, null);
-  undoPlan = pl ? { id: pl.id, d: { k: pl.k, datum: pl.datum, wie: pl.wie } } : null;
+  if (pl) write("planning/" + pl.id + "/gedaan", { w: wie, t: Date.now(), log: id });
+  undoPlan = pl ? { id: pl.id } : null;
   if (navigator.vibrate) navigator.vibrate(25);
   const b = document.querySelector(`[data-done="${kid}"][data-wie="${wie}"]`);
   if (b) b.classList.add("pop");
@@ -857,7 +878,7 @@ function toast(msg) {
 }
 $("#toastUndo").onclick = () => {
   if (undoId) write("log/" + undoId, null);
-  if (undoId && undoPlan) write("planning/" + undoPlan.id, undoPlan.d);
+  if (undoId && undoPlan) write("planning/" + undoPlan.id + "/gedaan", null);
   undoId = null; undoPlan = null; $("#toast").classList.remove("show");
 };
 
@@ -937,7 +958,7 @@ function editSheet(kid) {
   if (kid) $("#kDel").onclick = () => {
     if (!confirm(`"${k.naam}" verwijderen? De historie blijft bewaard.`)) return;
     write("klusjes/" + kid, null);
-    planList(kid).forEach(x => write("planning/" + x.id, null));
+    alleePlanning(kid).forEach(x => write("planning/" + x.id, null));
     closeSheet();
   };
   if (!kid) setTimeout(() => $("#kNaam").focus(), 260);
@@ -1137,12 +1158,19 @@ function settingsSheet(first) {
 
 /* ---------- events ---------- */
 document.body.addEventListener("click", e => {
-  const t = e.target.closest("[data-cat],[data-done],[data-edit],[data-open],[data-plan],[data-unplan],[data-add],[data-filter],[data-per],[data-del],[data-tab]");
+  const t = e.target.closest("[data-heropen],[data-cat],[data-done],[data-edit],[data-open],[data-plan],[data-unplan],[data-add],[data-filter],[data-per],[data-del],[data-tab]");
   if (!t) return;
   if (t.dataset.done) return done(t.dataset.done, t.dataset.wie, t, t.dataset.pid);
   if (t.dataset.edit) return editSheet(t.dataset.edit);
   if (t.dataset.open) return detailSheet(t.dataset.open);
   if (t.hasAttribute("data-plan")) return planSheet(t.dataset.plan || null);
+  if (t.dataset.heropen) {
+    const x = data.planning[t.dataset.heropen]; if (!x) return;
+    if (x.gedaan && x.gedaan.log) write("log/" + x.gedaan.log, null);
+    write("planning/" + t.dataset.heropen + "/gedaan", null);
+    toast("↩︎ Terug in de planning"); $("#toastUndo").classList.add("hidden"); setTimeout(() => $("#toastUndo").classList.remove("hidden"), 4600);
+    return;
+  }
   if (t.dataset.unplan) { write("planning/" + t.dataset.unplan, null); if ($("#sheet").classList.contains("open") && $("#sheet").querySelector("#dPlan")) closeSheet(); return; }
   if (t.hasAttribute("data-add")) return editSheet(null);
   if (t.dataset.filter) { filter = t.dataset.filter; return render(); }
