@@ -189,6 +189,16 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .cat-kop{display:flex;align-items:center;gap:8px;margin:20px 2px 2px;font-family:Fraunces,serif;font-size:19px;font-weight:700}
 .cat-kop small{font-family:Inter,sans-serif;font-size:12.5px;font-weight:600;color:var(--muted);background:#e9e6dc;border-radius:99px;padding:2px 8px}
 .list .cat-kop:first-child{margin-top:4px}
+.lijst-add{display:flex;gap:8px}
+.lijst-add .inp{flex:1;padding:12px 14px}
+.lijst-add button{flex:none;width:50px;border-radius:14px;background:var(--accent);color:#fff;font-size:24px;font-weight:600}
+.litem{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.litem:last-child{border-bottom:0}
+.litem .vak{width:26px;height:26px;border-radius:8px;border:2px solid #cfcabb;display:grid;place-items:center;flex:none;font-size:15px;color:#fff;background:var(--card)}
+.litem.af .vak{background:var(--accent);border-color:var(--accent)}
+.litem .tx{flex:1;min-width:0;text-align:left;font-size:16px;overflow-wrap:break-word}
+.litem.af .tx{text-decoration:line-through;color:var(--muted)}
+.lijst-wis{font-size:13.5px;font-weight:600;color:var(--late);padding:10px 0 2px}
 .hidden{display:none!important}
 </style>
 </head>
@@ -256,7 +266,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "13";   // moet gelijk zijn aan versie.json
+const VERSIE = "14";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -310,6 +320,7 @@ function rebuild() {
   data.instellingen = data.instellingen || {};
   data.planning = data.planning || {};
   data.backups = data.backups || {};
+  data.lijsten = data.lijsten || {};
 }
 // Eerlijke verdeling: welk deel van de klusjes Maarten als doel heeft (Femke de rest).
 const aandeelM = () => { const v = data.instellingen.aandeelM; return typeof v === "number" ? v : 40; };
@@ -668,6 +679,7 @@ function render() {
   if (tab === "score") renderScore();
   if (tab === "planning") renderPlanning();
   if (tab === "historie") renderHist();
+  renderLijst();
 }
 
 function stripHtml(since, label) {
@@ -698,7 +710,8 @@ function renderKlusjes() {
   items.sort((a, b) => a.s.order - b.s.order || (a.k.v ?? 99) - (b.k.v ?? 99) || a.k.naam.localeCompare(b.k.naam));
   const kaart = ({ id, k, s }) => {
     const c = counts(since, id);
-    const lastTxt = s.last ? `${ago(s.last.t)} · ${esc(P[s.last.w]?.naam || "?")}` : (!k.elke && k.uitleg ? esc(k.uitleg.split("\n")[0]) : freqTxt(k.elke).replace(/^./, c => c.toUpperCase()));
+    const nLijst = heeftLijst(k) ? lijstItems(id).filter(x => !x.af).length : 0;
+    const lastTxt = (nLijst ? `🛒 ${nLijst} op de lijst · ` : "") + (s.last ? `${ago(s.last.t)} · ${esc(P[s.last.w]?.naam || "?")}` : (!k.elke && k.uitleg ? esc(k.uitleg.split("\n")[0]) : freqTxt(k.elke).replace(/^./, c => c.toUpperCase())));
     return `<div class="card ${s.uit ? "uit" : ""}">
       <button class="main" data-open="${id}">
         <div class="emoji">${esc(k.emoji || "✨")}</div>
@@ -861,12 +874,37 @@ function editSheet(kid) {
   if (!kid) setTimeout(() => $("#kNaam").focus(), 260);
 }
 
+/* ---------- lijstje bij een klusje (bijv. boodschappen) ---------- */
+const heeftLijst = (k) => !!k && (k.lijst || /boodschap/i.test(k.naam || ""));
+function lijstItems(kid) {
+  return Object.entries(data.lijsten[kid] || {}).map(([id, x]) => ({ id, ...x })).filter(x => typeof x.tekst === "string")
+    .sort((a, b) => (a.af ? 1 : 0) - (b.af ? 1 : 0) || (a.t || 0) - (b.t || 0));
+}
+function renderLijst() {
+  const box = document.getElementById("lijstBox"); if (!box) return;
+  const kid = box.dataset.kid, items = lijstItems(kid), af = items.filter(x => x.af).length;
+  box.innerHTML = (items.length ? `<div class="rows" style="padding:0 14px">${items.map(x =>
+      `<div class="litem ${x.af ? "af" : ""}"><button class="vak" data-li="${x.id}">${x.af ? "✓" : ""}</button>
+        <button class="tx" data-li="${x.id}">${esc(x.tekst)}</button><button class="x" data-ldel="${x.id}" aria-label="Weghalen">×</button></div>`).join("")}</div>`
+    : `<p class="note" style="margin-top:4px">Lijstje is leeg.</p>`)
+    + (af ? `<button class="lijst-wis" data-lwis>Afgevinkte weghalen (${af})</button>` : "");
+}
+function lijstToevoegen(kid) {
+  const inp = $("#lijstIn"); const tekst = inp.value.trim(); if (!tekst) return;
+  for (const t of tekst.split(/\n|,(?=\s*\S)/).map(x => x.trim()).filter(Boolean))   // meerdere tegelijk met komma's
+    write("lijsten/" + kid + "/" + uid(), { tekst: t.slice(0, 80), af: false, t: Date.now(), door: me || "?" });
+  inp.value = ""; inp.focus();
+}
+
 function detailSheet(kid) {
   const k = data.klusjes[kid]; if (!k) return;
   const s = status(k, kid), c = counts(0, kid), pl = planList(kid);
   const recent = logList().filter(e => e.k === kid).slice(0, 4);
   openSheet(`<h2>${esc(k.emoji)} ${esc(k.naam)}</h2>
     <div class="meta"><span class="tag ${s.cls}">${s.label}</span><span class="tag none">${freqTxt(k.elke).replace(/^./, x => x.toUpperCase())}</span>${seizoen(k) ? `<span class="tag none">🍂 ${seizoenTxt(k)}</span>` : ""}</div>
+    ${heeftLijst(k) ? `<label class="f">🛒 Lijstje</label>
+      <div class="lijst-add"><input class="inp" id="lijstIn" placeholder="Bijv. melk, brood, kaas" enterkeyhint="done" autocomplete="off" maxlength="200"><button id="lijstOk" aria-label="Toevoegen">+</button></div>
+      <div id="lijstBox" data-kid="${kid}" style="margin-top:10px"></div>` : ""}
     <label class="f">Zo doe je het</label>
     <div class="uitleg ${k.uitleg ? "" : "leeg"}">${k.uitleg ? esc(k.uitleg) : "Nog geen uitleg. Tik op Aanpassen om er een te schrijven."}</div>
     ${pl.length ? `<label class="f">Ingepland</label><div class="rows">${pl.map(planRow).join("")}</div>` : ""}
@@ -874,6 +912,18 @@ function detailSheet(kid) {
     <p class="note" style="margin-top:0">${recent.length ? recent.map(e => `${ago(e.t)} · ${esc(P[e.w]?.naam || "?")}`).join("<br>") : "Nog nooit."}<br>Totaal: ${P.maarten.naam} ${c.maarten}× · ${P.femke.naam} ${c.femke}×</p>
     <div class="btnrow"><button class="btn ghost" id="dEdit">✏️ Aanpassen</button><button class="btn primary" id="dPlan">📅 Inplannen</button></div>`);
   $("#dEdit").onclick = () => editSheet(kid);
+  if (heeftLijst(k)) {
+    renderLijst();
+    $("#lijstOk").onclick = () => lijstToevoegen(kid);
+    $("#lijstIn").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); lijstToevoegen(kid); } };
+    $("#lijstBox").onclick = e => {
+      const t = e.target.closest("[data-li],[data-ldel],[data-lwis]"); if (!t) return;
+      e.stopPropagation();
+      if (t.dataset.li) { const x = (data.lijsten[kid] || {})[t.dataset.li]; if (x) write("lijsten/" + kid + "/" + t.dataset.li + "/af", !x.af); }
+      else if (t.dataset.ldel) write("lijsten/" + kid + "/" + t.dataset.ldel, null);
+      else lijstItems(kid).filter(x => x.af).forEach(x => write("lijsten/" + kid + "/" + x.id, null));
+    };
+  }
   $("#dPlan").onclick = () => planSheet(kid);
 }
 
