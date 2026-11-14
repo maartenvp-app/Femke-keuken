@@ -198,6 +198,10 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .litem.af .vak{background:var(--accent);border-color:var(--accent)}
 .litem .tx{flex:1;min-width:0;text-align:left;font-size:16px;overflow-wrap:break-word}
 .litem.af .tx{text-decoration:line-through;color:var(--muted)}
+.stap{display:flex;align-items:center;gap:2px;flex:none}
+.stap button{width:30px;height:30px;border-radius:9px;background:#eeece4;font-size:18px;font-weight:700;color:var(--ink)}
+.stap b{min-width:26px;text-align:center;font-size:15px}
+.litem .aant{font-weight:700;color:var(--accent);margin-right:4px}
 .lijst-wis{font-size:13.5px;font-weight:600;color:var(--late);padding:10px 0 2px}
 .hidden{display:none!important}
 </style>
@@ -266,7 +270,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "14";   // moet gelijk zijn aan versie.json
+const VERSIE = "15";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -885,14 +889,25 @@ function renderLijst() {
   const kid = box.dataset.kid, items = lijstItems(kid), af = items.filter(x => x.af).length;
   box.innerHTML = (items.length ? `<div class="rows" style="padding:0 14px">${items.map(x =>
       `<div class="litem ${x.af ? "af" : ""}"><button class="vak" data-li="${x.id}">${x.af ? "✓" : ""}</button>
-        <button class="tx" data-li="${x.id}">${esc(x.tekst)}</button><button class="x" data-ldel="${x.id}" aria-label="Weghalen">×</button></div>`).join("")}</div>`
+        <button class="tx" data-li="${x.id}">${x.af && (x.aantal || 1) > 1 ? `<span class="aant">${x.aantal}×</span>` : ""}${esc(x.tekst)}</button>
+        ${x.af ? "" : `<span class="stap"><button data-lmin="${x.id}" aria-label="Minder">−</button><b>${x.aantal || 1}</b><button data-lplus="${x.id}" aria-label="Meer">+</button></span>`}
+        <button class="x" data-ldel="${x.id}" aria-label="Weghalen">×</button></div>`).join("")}</div>`
     : `<p class="note" style="margin-top:4px">Lijstje is leeg.</p>`)
     + (af ? `<button class="lijst-wis" data-lwis>Afgevinkte weghalen (${af})</button>` : "");
 }
 function lijstToevoegen(kid) {
   const inp = $("#lijstIn"); const tekst = inp.value.trim(); if (!tekst) return;
-  for (const t of tekst.split(/\n|,(?=\s*\S)/).map(x => x.trim()).filter(Boolean))   // meerdere tegelijk met komma's
-    write("lijsten/" + kid + "/" + uid(), { tekst: t.slice(0, 80), af: false, t: Date.now(), door: me || "?" });
+  for (const t of tekst.split(/\n|,(?=\s*\S)/).map(x => x.trim()).filter(Boolean)) {   // meerdere tegelijk met komma's
+    // aantal herkennen: "2 melk", "2x melk", "melk 2", "melk 2x"
+    let m, aantal = 1, naam = t;
+    if ((m = t.match(/^(\d{1,3})\s*[x×]?\s+(.+)$/i))) { aantal = +m[1]; naam = m[2]; }
+    else if ((m = t.match(/^(.+?)\s+[x×]?\s*(\d{1,3})\s*[x×]?$/i))) { aantal = +m[2]; naam = m[1]; }
+    aantal = Math.max(1, Math.min(99, aantal)); naam = naam.trim().slice(0, 80);
+    // staat het er al (niet afgevinkt)? dan aantal ophogen in plaats van dubbel
+    const al = lijstItems(kid).find(x => !x.af && x.tekst.toLowerCase() === naam.toLowerCase());
+    if (al) write("lijsten/" + kid + "/" + al.id + "/aantal", Math.min(99, (al.aantal || 1) + aantal));
+    else write("lijsten/" + kid + "/" + uid(), { tekst: naam, aantal, af: false, t: Date.now(), door: me || "?" });
+  }
   inp.value = ""; inp.focus();
 }
 
@@ -903,7 +918,7 @@ function detailSheet(kid) {
   openSheet(`<h2>${esc(k.emoji)} ${esc(k.naam)}</h2>
     <div class="meta"><span class="tag ${s.cls}">${s.label}</span><span class="tag none">${freqTxt(k.elke).replace(/^./, x => x.toUpperCase())}</span>${seizoen(k) ? `<span class="tag none">🍂 ${seizoenTxt(k)}</span>` : ""}</div>
     ${heeftLijst(k) ? `<label class="f">🛒 Lijstje</label>
-      <div class="lijst-add"><input class="inp" id="lijstIn" placeholder="Bijv. melk, brood, kaas" enterkeyhint="done" autocomplete="off" maxlength="200"><button id="lijstOk" aria-label="Toevoegen">+</button></div>
+      <div class="lijst-add"><input class="inp" id="lijstIn" placeholder="Bijv. 2 melk, brood, kaas" enterkeyhint="done" autocomplete="off" maxlength="200"><button id="lijstOk" aria-label="Toevoegen">+</button></div>
       <div id="lijstBox" data-kid="${kid}" style="margin-top:10px"></div>` : ""}
     <label class="f">Zo doe je het</label>
     <div class="uitleg ${k.uitleg ? "" : "leeg"}">${k.uitleg ? esc(k.uitleg) : "Nog geen uitleg. Tik op Aanpassen om er een te schrijven."}</div>
@@ -917,8 +932,12 @@ function detailSheet(kid) {
     $("#lijstOk").onclick = () => lijstToevoegen(kid);
     $("#lijstIn").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); lijstToevoegen(kid); } };
     $("#lijstBox").onclick = e => {
-      const t = e.target.closest("[data-li],[data-ldel],[data-lwis]"); if (!t) return;
+      const t = e.target.closest("[data-li],[data-ldel],[data-lwis],[data-lmin],[data-lplus]"); if (!t) return;
       e.stopPropagation();
+      const id = t.dataset.lmin || t.dataset.lplus;
+      if (id) { const x = (data.lijsten[kid] || {})[id]; if (!x) return;
+        const n = Math.max(1, Math.min(99, (x.aantal || 1) + (t.dataset.lplus ? 1 : -1)));
+        if (n !== (x.aantal || 1)) write("lijsten/" + kid + "/" + id + "/aantal", n); return; }
       if (t.dataset.li) { const x = (data.lijsten[kid] || {})[t.dataset.li]; if (x) write("lijsten/" + kid + "/" + t.dataset.li + "/af", !x.af); }
       else if (t.dataset.ldel) write("lijsten/" + kid + "/" + t.dataset.ldel, null);
       else lijstItems(kid).filter(x => x.af).forEach(x => write("lijsten/" + kid + "/" + x.id, null));
