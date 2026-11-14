@@ -303,7 +303,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "31";   // moet gelijk zijn aan versie.json
+const VERSIE = "32";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -809,6 +809,25 @@ function stripHtml(since, label) {
     <small>Afspraak ${aandeelM()}/${100 - aandeelM()} · ${e.tekst}</small>`;
 }
 
+// Logische volgorde: werkvolgorde (bv. was → ophangen → droger → vouwen → strijken; afstoffen → stofzuigen → dweilen)
+// en daarna van vaak naar zelden. Zelf toegevoegde klusjes komen erachter.
+const VOLGORDE = [
+  // was
+  "s-wittewas", "s-normalewas", "s-handdoeken", "s-ophangen", "s-droger", "s-vouwen", "s-strijken",
+  // schoonmaak
+  "s-afstoffen", "s-stofzuigenbeneden", "s-stofzuigen", "s-dweilen", "s-wc", "s-badmeubel", "s-spiegel", "s-ramen",
+  // keuken
+  "s-vaatwasser", "s-boodschappen", "s-koelkast", "s-magnetron", "s-vaatwasserfilter", "s-afzuigkap", "s-oven", "s-voorraad", "s-vriezer",
+  // buiten
+  "s-containers", "s-stoep", "s-plantenwater", "s-onkruid", "s-bemesten", "s-bladeren", "s-snoeien", "s-siergrassen",
+  "s-containersschoon", "s-dakgoot", "s-buitenkraan", "s-terras", "s-tuinmeubels", "s-ramenbuiten",
+  // auto
+  "s-autowassen", "s-autostofzuigen", "s-ruitenwisser", "s-olie",
+  // techniek
+  "s-cvbijvullen", "s-rookmelder", "s-aardlek", "s-radiatoren",
+];
+const rang = x => { const i = VOLGORDE.indexOf(x.id); return i >= 0 ? i : 1000 + (typeof x.k.v === "number" ? x.k.v : 999); };
+
 function renderKlusjes() {
   $("#strip").innerHTML = stripHtml(periodStart("week"), "deze week");
   const vk = vandaagKey();
@@ -825,7 +844,9 @@ function renderKlusjes() {
   else if (cat !== "alles") items = items.filter(x => catVan(x.k) === cat);
   const q = zoek.trim().toLowerCase();
   if (q) items = items.filter(x => (x.k.naam + " " + (x.k.uitleg || "") + " " + CAT_NAAM[catVan(x.k)]).toLowerCase().includes(q));
-  items.sort((a, b) => a.s.order - b.s.order || (a.k.v ?? 99) - (b.k.v ?? 99) || a.k.naam.localeCompare(b.k.naam));
+  // "Nu te doen": eerst wat het meest haast heeft. Anders: vaste, logische volgorde per categorie.
+  if (filter === "nu") items.sort((a, b) => a.s.order - b.s.order || rang(a) - rang(b));
+  else items.sort((a, b) => rang(a) - rang(b) || a.k.naam.localeCompare(b.k.naam));
   const kaart = ({ id, k, s }) => {
     const c = counts(since, id);
     const nLijst = heeftLijst(k) ? lijstItems(id).filter(x => !x.af).length : 0;
