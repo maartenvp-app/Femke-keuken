@@ -256,6 +256,24 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
+const VERSIE = "12";   // moet gelijk zijn aan versie.json
+
+/* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
+async function checkVersie() {
+  try {
+    const r = await fetch("versie.json?t=" + Date.now(), { cache: "no-store" });
+    const v = (await r.json()).v;
+    if (v && v !== VERSIE) {
+      const n = +(sessionStorage.getItem("klusjes:reload") || 0);
+      if (n < 2) { sessionStorage.setItem("klusjes:reload", n + 1); location.reload(); }
+    } else sessionStorage.removeItem("klusjes:reload");
+  } catch {}
+}
+async function hardBijwerken() {
+  try { for (const k of await caches.keys()) await caches.delete(k); } catch {}
+  try { for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch {}
+  location.replace(location.pathname + "?v=" + Date.now());
+}
 
 /* ---------- opslag ---------- */
 function load(k, d) { try { const v = localStorage.getItem(LS(k)); return v ? JSON.parse(v) : d; } catch { return d; } }
@@ -376,7 +394,7 @@ function connect() {
     online = true; setDot();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); maakBackup();
+    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -387,7 +405,7 @@ function connect() {
 }
 window.addEventListener("online", () => { flush(); if (!es || es.readyState === 2) connect(); });
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") { flush(); if (!es || es.readyState === 2) connect(); }
+  if (document.visibilityState === "visible") { checkVersie(); flush(); if (!es || es.readyState === 2) connect(); }
 });
 
 function setDot(msg) {
@@ -484,14 +502,25 @@ function migreer5() {
   const nieuw = [
     // id, naam, emoji, elke (0 = wanneer nodig), maanden, categorie
     ["afzuigkap", "Filter afzuigkap schoonmaken", "🍳", 91, [], "keuken"],
-    ["rookmelder", "Rookmelders testen", "🚨", 91, [], "overig"],
-    ["cvbijvullen", "Cv-ketel bijvullen", "🔥", 0, [], "overig"],
-    ["radiatoren", "Radiatoren ontluchten", "♨️", 365, [10], "overig"],
+    ["rookmelder", "Rookmelders testen", "🚨", 91, [], "techniek"],
+    ["cvbijvullen", "Cv-ketel bijvullen", "🔥", 0, [], "techniek"],
+    ["radiatoren", "Radiatoren ontluchten", "♨️", 365, [10], "techniek"],
     ["ruitenwisser", "Ruitenwisservloeistof bijvullen", "🚗", 0, [], "auto"],
   ];
   nieuw.forEach(([id, naam, emoji, elke, maanden, cat], i) =>
     pending.push({ m: "PUT", seed: "nieuw", p: "klusjes/s-" + id, d: { naam, emoji, elke, cat, ...(maanden.length ? { maanden } : {}), v: 300 + i } }));
   pending.push({ m: "PUT", u: 1, p: "instellingen/m5", d: true });
+  save("pending", pending); flush();
+}
+
+// Techniek-klusjes naar de nieuwe categorie (alleen het categorie-veld, uitleg blijft)
+function migreer6() {
+  if (!loaded || !server.klusjes || (server.instellingen && server.instellingen.m6) || pending.some(op => op.p === "instellingen/m6")) return;
+  for (const id of ["s-rookmelder", "s-cvbijvullen", "s-radiatoren"]) {
+    const k = server.klusjes[id];
+    if (k && k.naam && k.cat !== "techniek") pending.push({ m: "PUT", u: 1, p: "klusjes/" + id, d: { ...k, cat: "techniek" } });
+  }
+  pending.push({ m: "PUT", u: 1, p: "instellingen/m6", d: true });
   save("pending", pending); flush();
 }
 
@@ -616,13 +645,14 @@ const wieTxt = w => w ? P[w].naam : "Samen / wie kan";
 /* ---------- weergave ---------- */
 let tab = "klusjes", periode = "week", filter = "alles", cat = "alles", zoek = "";
 const FILTERS = [["alles", "Alles"], ["nu", "Nu te doen"], ["week", "Wekelijks"], ["periodiek", "Periodiek"]];
-const CATS = [["was", "🧺", "Was"], ["schoonmaak", "🧽", "Schoonmaak"], ["keuken", "🍽️", "Keuken"], ["buiten", "🌳", "Buiten"], ["auto", "🚗", "Auto"], ["overig", "📦", "Overig"]];
+const CATS = [["was", "🧺", "Was"], ["schoonmaak", "🧽", "Schoonmaak"], ["keuken", "🍽️", "Keuken"], ["buiten", "🌳", "Buiten"], ["auto", "🚗", "Auto"], ["techniek", "🔧", "Techniek"], ["overig", "📦", "Overig"]];
 const CAT_NAAM = Object.fromEntries(CATS.map(([k, e, n]) => [k, e + " " + n]));
 // Categorie raden uit de naam als die nog niet is gekozen (er wordt niks in de database aangepast)
 function catVan(k) {
   if (k.cat && CAT_NAAM[k.cat]) return k.cat;
   const n = (k.naam || "").toLowerCase();
-  if (/\bauto|wagen|tanken|banden/.test(n)) return "auto";
+  if (/\bauto|wagen|tanken|banden|ruitenwis/.test(n)) return "auto";
+  if (/rookmelder|cv|ketel|radiator|ventilatie|wtw|meterstand|zekering|thermostaat|boiler/.test(n)) return "techniek";
   if (/buiten|tuin|dakgoot|gras|heg|onkruid|terras|schutting|kliko|container|vuilnis/.test(n)) return "buiten";
   if (/\bwas\b|was |wasmachine|handdoek|strijk|vouw|droger/.test(n) || /was$/.test(n)) return "was";
   if (/vaatwas|afwas|koelkast|oven|vriezer|keuken|koken|magnetron|boodschap|aanrecht/.test(n)) return "keuken";
@@ -905,6 +935,9 @@ function settingsSheet(first) {
     <input class="inp" id="dbUrl" value="${esc(load("dbUrl", ""))}" placeholder="${esc(CFG.FIREBASE_URL || "https://…firebasedatabase.app")}" inputmode="url" autocapitalize="off" autocorrect="off">
     <p class="note">Huis-code: <code>${esc(code())}</code></p>
     <button class="btn ghost" id="dbSave">Koppeling opslaan</button>
+    <label class="f">App</label>
+    <p class="note" style="margin-top:0">Versie ${VERSIE}. De app werkt zichzelf bij, maar zie je iets nieuws niet? Tik dan hieronder.</p>
+    <button class="btn ghost" id="hardUpd" style="margin-top:8px">🔄 App bijwerken</button>
     <label class="f">Back-ups</label>
     <p class="note" style="margin-top:0">Elke dag wordt automatisch een kopie bewaard (laatste 14 dagen). Herstellen zet verdwenen klusjes en verdwenen uitleg terug. Er wordt nooit iets gewist of overschreven.</p>
     <div class="rows" style="padding:2px 14px">${Object.entries(data.backups).sort((a, b) => b[0].localeCompare(a[0])).map(([d, bk]) =>
@@ -930,6 +963,7 @@ function settingsSheet(first) {
       const n = herstel(data.backups[d]); closeSheet(); toast(n ? `${n} ding(en) hersteld ✓` : "Niks te herstellen, alles staat er nog ✓");
     });
     $("#bkExport").onclick = exporteer;
+    $("#hardUpd").onclick = hardBijwerken;
     $("#bkImport").onclick = () => IN_APP ? plakSheet() : $("#bkFile").click();
     $("#bkFile").onchange = async () => {
       const f = $("#bkFile").files[0]; if (!f) return;
@@ -980,7 +1014,8 @@ $("#zoekWis").onclick = () => { zoek = ""; $("#zoek").value = ""; $("#zoekWis").
 if (!url()) { seedIfEmpty(); }          // lokaal: meteen standaard klusjes
 rebuild(); render(); connect(); flush();
 if (!me) setTimeout(() => settingsSheet(true), 300);
-setInterval(render, 60000);          // "vandaag/morgen" bijwerken na middernacht
+setInterval(render, 60000);
+checkVersie(); setInterval(checkVersie, 5 * 60000);          // "vandaag/morgen" bijwerken na middernacht
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
 </body>

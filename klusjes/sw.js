@@ -1,6 +1,6 @@
 // Werkt offline: haalt altijd eerst de nieuwste versie op, valt terug op de cache zonder internet.
-const CACHE = "klusjes-v11";
-const FILES = ["./", "index.html", "config.js", "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
+const CACHE = "klusjes-v12";
+const FILES = ["./", "index.html", "config.js", "versie.json", "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
