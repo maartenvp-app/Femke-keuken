@@ -287,7 +287,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "20";   // moet gelijk zijn aan versie.json
+const VERSIE = "21";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -793,8 +793,8 @@ function gedaanRow(x) {
 }
 function renderPlanning() {
   const list = planList(), klaar = planGedaan();
-  const klaarHtml = klaar.length ? `<div class="day">✅ Afgevinkt</div><div class="rows">${klaar.map(gedaanRow).join("")}</div>
-    <p class="note">Tik op ↩︎ om een klusje terug te zetten in de planning (de afvinking wordt dan ook uit de score gehaald).</p>` : "";
+  const vandaagKlaar = klaar.filter(x => x.gedaan.t >= startOfDay(Date.now())).length;
+  const klaarHtml = vandaagKlaar ? `<button class="note" data-tab="historie" style="display:block;margin:16px auto 0;text-align:center">✅ ${vandaagKlaar} gepland${vandaagKlaar > 1 ? "e klusjes" : " klusje"} vandaag afgevinkt · <u>bekijk in Historie</u></button>` : "";
   if (!list.length) { $("#planlist").innerHTML = `<div class="empty">${klaar.length ? "Alles van de planning is gedaan 🎉" : "Nog niks ingepland. Plan een klusje op een dag en kies wie het doet."}</div>` + klaarHtml; return; }
   let html = "", dag = null;
   const vk = vandaagKey();
@@ -848,7 +848,8 @@ function renderHist() {
     }
     const k = data.klusjes[e.k] || { naam: e.n || "Verwijderd klusje", emoji: "🗂️" };
     const tijd = new Date(e.t).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
-    html += `<div class="hrow"><span class="e">${esc(k.emoji)}</span><span class="t">${esc(k.naam)}<small>${tijd}</small></span>
+    const uitPlan = Object.values(data.planning).some(x => x && x.gedaan && x.gedaan.log === e.id);
+    html += `<div class="hrow"><span class="e">${esc(k.emoji)}</span><span class="t">${esc(k.naam)}<small>${tijd}${uitPlan ? " · 📅 uit planning" : ""}</small></span>
       <span class="pill ${e.w === "maarten" ? "m" : "f"}">${esc(P[e.w]?.naam || "?")}</span>
       <button class="x" data-del="${e.id}" aria-label="Verwijderen">×</button></div>`;
   }
@@ -1178,12 +1179,13 @@ document.body.addEventListener("click", e => {
   if (t.dataset.per) { periode = t.dataset.per; return render(); }
   if (t.dataset.del) {
     const e2 = data.log[t.dataset.del]; if (!e2) return;
-    if (confirm("Deze afvinking verwijderen?")) write("log/" + t.dataset.del, null);
+    const uitPlan = Object.values(data.planning).some(x => x && x.gedaan && x.gedaan.log === t.dataset.del);
+    if (confirm(uitPlan ? "Deze afvinking verwijderen? Het klusje komt dan terug in de planning." : "Deze afvinking verwijderen?")) write("log/" + t.dataset.del, null);
     return;
   }
   if (t.dataset.tab) {
     tab = t.dataset.tab;
-    document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("on", b === t));
+    document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
     ["klusjes", "boodschappen", "planning", "score", "historie"].forEach(v => $("#v-" + v).classList.toggle("hidden", v !== tab));
     $("#title").textContent = { klusjes: "Klusjes", boodschappen: "Boodschappen", planning: "Planning", score: "Wie doet zijn deel?", historie: "Historie" }[tab];
     window.scrollTo(0, 0); render();
