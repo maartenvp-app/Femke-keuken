@@ -145,6 +145,14 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
 .toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:11px 12px 11px 16px;border-radius:14px;font-size:14.5px;display:flex;gap:14px;align-items:center;opacity:0;pointer-events:none;transition:all .2s;z-index:40;width:max-content;max-width:calc(100% - 32px)}
 .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .toast button{color:#9fe0b6;font-weight:700;padding:4px 6px}
+/* telefoonbreedte: icoon en knoppen iets compacter, meer ruimte voor de naam */
+@media (max-width:460px){
+  .card{padding:11px 9px 11px 10px;gap:6px}
+  .card .main{gap:9px}
+  .emoji{width:38px;height:38px;font-size:21px;border-radius:12px}
+  .card .who{gap:5px}
+  .card .who button{width:40px;height:40px;font-size:14px}
+}
 /* smal scherm of grote tekst: M/F-knoppen onder het klusje */
 @media (max-width:380px){
   .card{flex-wrap:wrap}
@@ -213,7 +221,7 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .prow.af .t{color:var(--muted)}
 .prow.af .e{opacity:.6}
 .x.terug{font-size:19px;color:var(--accent);font-weight:700}
-.tag.pt{background:#eeece4;color:var(--ink)}
+.card p .ptn{color:var(--ink);font-weight:600}
 .hidden{display:none!important}
 </style>
 </head>
@@ -288,7 +296,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "24";   // moet gelijk zijn aan versie.json
+const VERSIE = "26";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -653,8 +661,8 @@ function status(k, kid) {
     const start = seizoenStart(k);
     if (!k.elke) return { order: 9e8, label: "Wanneer nodig", cls: "none", last };
     if (k.elke >= 30) {
-      if (!last || last.t < start) return { order: -5e5, label: "Dit seizoen nog doen", cls: "today", last };
-      if (startOfDay(last.t) + k.elke * DAG > Date.now()) return { order: 8e8, label: "Gedaan dit seizoen ✓", cls: "", last };
+      if (!last || last.t < start) return { order: -5e5, label: "Dit seizoen", cls: "today", last };
+      if (startOfDay(last.t) + k.elke * DAG > Date.now()) return { order: 8e8, label: "Gedaan ✓", cls: "", last };
     } else if (!last || last.t < start) return { order: -1e6, label: "Nog niet gedaan", cls: "late", last };
   }
   if (!k.elke) return { order: 9e9, label: "Wanneer nodig", cls: "none", last };
@@ -781,7 +789,7 @@ function renderKlusjes() {
     return `<div class="card ${s.uit ? "uit" : ""}">
       <button class="main" data-open="${id}">
         <div class="emoji">${esc(k.emoji || "✨")}</div>
-        <div class="txt"><h3>${esc(k.naam)}${k.uitleg ? ` <span style="font-size:13px">📝</span>` : ""}${seizoen(k) ? ` <span style="font-size:13px">🍂</span>` : ""}</h3><p>${lastTxt}</p><span class="tag ${s.cls}">${s.label}</span> <span class="tag pt">${puntenVan(k, id)} pt</span>${(() => { const pl = planList(id)[0]; return pl ? ` <span class="plan">📅 ${dagNaam(pl.datum).split(" ")[0].toLowerCase()} · ${esc(wieTxt(pl.wie))}</span>` : ""; })()}</div>
+        <div class="txt"><h3>${esc(k.naam)}${k.uitleg ? ` <span style="font-size:13px">📝</span>` : ""}</h3><p><b class="ptn">${puntenVan(k, id)} pt</b> · ${lastTxt}</p><span class="tag ${s.cls}">${s.label}</span>${(() => { const pl = planList(id)[0]; return pl ? ` <span class="plan">📅 ${dagNaam(pl.datum).split(" ")[0].toLowerCase()} · ${esc(wieTxt(pl.wie))}</span>` : ""; })()}</div>
       </button>
       <div class="who">
         <button class="m" data-done="${id}" data-wie="maarten" aria-label="${P.maarten.naam} deed ${esc(k.naam)}">M${c.maarten ? `<span class="n">${c.maarten}</span>` : ""}</button>
