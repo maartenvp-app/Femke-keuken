@@ -213,6 +213,7 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .prow.af .t{color:var(--muted)}
 .prow.af .e{opacity:.6}
 .x.terug{font-size:19px;color:var(--accent);font-weight:700}
+.tag.pt{background:#eeece4;color:var(--ink)}
 .hidden{display:none!important}
 </style>
 </head>
@@ -254,7 +255,7 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
   <section id="v-score" class="hidden">
     <div class="seg" id="seg"></div>
     <div class="duel" id="duel"></div>
-    <h2 class="sec">Per klusje</h2>
+    <h2 class="sec">Punten per klusje</h2>
     <div class="rows" id="perKlus"></div>
   </section>
 
@@ -287,7 +288,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "21";   // moet gelijk zijn aan versie.json
+const VERSIE = "22";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -353,7 +354,7 @@ function eerlijk(c) {
   if (!tot) tekst = "Nog niks gedaan";
   else if (r >= 1) { wie = verschil > 0 ? "maarten" : "femke";
     const ander = wie === "maarten" ? "femke" : "maarten";
-    tekst = `${P[ander].naam} loopt ${r} klusje${r > 1 ? "s" : ""} achter`; }
+    tekst = `${P[ander].naam} loopt ${r} punt${r > 1 ? "en" : ""} achter`; }
   return { tot, tM, verschil, tekst, wie };
 }
 function schoon(v) { if (v && typeof v === "object" && !Array.isArray(v)) { const o = {}; for (const [a, b] of Object.entries(v)) if (b !== null && b !== undefined) o[a] = schoon(b); return o; } return v; }
@@ -606,6 +607,25 @@ function periodStart(p) {
   if (p === "maand") return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   return 0;
 }
+/* ---------- punten: hoeveel tijd kost een klusje? ---------- */
+const PUNTEN = [[1, "± 5 min"], [2, "± 15 min"], [3, "± 30 min"], [4, "± 1 uur"], [5, "1,5 uur +"]];
+const STANDAARD_PUNTEN = {
+  "s-vaatwasser": 1, "s-spiegel": 1, "s-containers": 1, "s-plantenwater": 1, "s-rookmelder": 1, "s-cvbijvullen": 1, "s-ruitenwisser": 1, "s-buitenkraan": 1,
+  "s-wittewas": 2, "s-normalewas": 2, "s-handdoeken": 2, "s-vouwen": 2, "s-wc": 2, "s-afstoffen": 2, "s-badmeubel": 2, "s-autostofzuigen": 2,
+  "s-containersschoon": 2, "s-stoep": 2, "s-afzuigkap": 2, "s-radiatoren": 2,
+  "s-strijken": 3, "s-stofzuigen": 3, "s-dweilen": 3, "s-boodschappen": 3, "s-koelkast": 3, "s-oven": 3, "s-tuinmeubels": 3, "s-autowassen": 3,
+  "s-bladeren": 3, "s-siergrassen": 3, "s-onkruid": 3,
+  "s-ramen": 4, "s-vriezer": 4, "s-dakgoot": 4, "s-ramenbuiten": 4,
+};
+const puntenVan = (k, id) => (k && k.punten >= 1 && k.punten <= 5) ? k.punten : (STANDAARD_PUNTEN[id] || 2);
+// punten van één afvinking: vastgelegd op het moment van afvinken (of anders de huidige waarde van het klusje)
+const puntenLog = e => (e.p >= 1 && e.p <= 5) ? e.p : puntenVan(data.klusjes[e.k], e.k);
+function punten(since, kid) {
+  const c = { maarten: 0, femke: 0 };
+  for (const e of Object.values(data.log)) if (e.t >= since && (!kid || e.k === kid) && c[e.w] !== undefined) c[e.w] += puntenLog(e);
+  return c;
+}
+
 function counts(since, kid) {
   const c = { maarten: 0, femke: 0 };
   for (const e of Object.values(data.log)) if (e.t >= since && (!kid || e.k === kid) && c[e.w] !== undefined) c[e.w]++;
@@ -714,10 +734,10 @@ function render() {
 }
 
 function stripHtml(since, label) {
-  const c = counts(since); const tot = c.maarten + c.femke;
+  const c = punten(since); const tot = c.maarten + c.femke;
   const pm = tot ? c.maarten / tot * 100 : aandeelM();
   const e = eerlijk(c);
-  return `<div class="row"><span>${P.maarten.naam} <b>${c.maarten}</b></span><small>${label}</small><span><b>${c.femke}</b> ${P.femke.naam}</span></div>
+  return `<div class="row"><span>${P.maarten.naam} <b>${c.maarten}</b></span><small>punten ${label}</small><span><b>${c.femke}</b> ${P.femke.naam}</span></div>
     <div class="barwrap"><div class="bar"><i style="width:${pm}%;background:${P.maarten.kleur}"></i><i style="width:${100 - pm}%;background:${P.femke.kleur}"></i></div><span class="doel" style="left:${aandeelM()}%"></span></div>
     <small>Afspraak ${aandeelM()}/${100 - aandeelM()} · ${e.tekst}</small>`;
 }
@@ -746,7 +766,7 @@ function renderKlusjes() {
     return `<div class="card ${s.uit ? "uit" : ""}">
       <button class="main" data-open="${id}">
         <div class="emoji">${esc(k.emoji || "✨")}</div>
-        <div class="txt"><h3>${esc(k.naam)}${k.uitleg ? ` <span style="font-size:13px">📝</span>` : ""}${seizoen(k) ? ` <span style="font-size:13px">🍂</span>` : ""}</h3><p>${lastTxt}</p><span class="tag ${s.cls}">${s.label}</span>${(() => { const pl = planList(id)[0]; return pl ? ` <span class="plan">📅 ${dagNaam(pl.datum).split(" ")[0].toLowerCase()} · ${esc(wieTxt(pl.wie))}</span>` : ""; })()}</div>
+        <div class="txt"><h3>${esc(k.naam)}${k.uitleg ? ` <span style="font-size:13px">📝</span>` : ""}${seizoen(k) ? ` <span style="font-size:13px">🍂</span>` : ""}</h3><p>${lastTxt}</p><span class="tag ${s.cls}">${s.label}</span> <span class="tag pt">${puntenVan(k, id)} pt</span>${(() => { const pl = planList(id)[0]; return pl ? ` <span class="plan">📅 ${dagNaam(pl.datum).split(" ")[0].toLowerCase()} · ${esc(wieTxt(pl.wie))}</span>` : ""; })()}</div>
       </button>
       <div class="who">
         <button class="m" data-done="${id}" data-wie="maarten" aria-label="${P.maarten.naam} deed ${esc(k.naam)}">M${c.maarten ? `<span class="n">${c.maarten}</span>` : ""}</button>
@@ -810,23 +830,24 @@ function renderScore() {
   const PER = [["week", "Deze week"], ["maand", "Deze maand"], ["altijd", "Altijd"]];
   $("#seg").innerHTML = PER.map(([k, l]) => `<button class="${periode === k ? "on" : ""}" data-per="${k}">${l}</button>`).join("");
   const since = periodStart(periode);
-  const c = counts(since); const tot = c.maarten + c.femke;
+  const c = punten(since); const tot = c.maarten + c.femke;
+  const aantal = counts(since);
   const e = eerlijk(c);
   const card = w => {
     const pct = tot ? Math.round(c[w] / tot * 100) : 0;
     const doel = w === "maarten" ? aandeelM() : 100 - aandeelM();
     const top = e.wie === w;
     return `<div class="p ${top ? "lead" : ""}" style="background:${P[w].zacht};color:${P[w].kleur}">
-      <span>${P[w].naam}${top ? " 👑" : ""}</span><b>${c[w]}</b><small>${tot ? pct + "% · doel " + doel + "%" : "doel " + doel + "%"}</small></div>`;
+      <span>${P[w].naam}${top ? " 👑" : ""}</span><b>${c[w]} <span style="font-size:15px;font-family:Inter,sans-serif;font-weight:600">pt</span></b><small>${aantal[w]} klusje${aantal[w] === 1 ? "" : "s"} · ${tot ? pct + "% · doel " + doel + "%" : "doel " + doel + "%"}</small></div>`;
   };
   $("#duel").innerHTML = card("maarten") + card("femke") +
-    `<p class="note" style="grid-column:1/-1;margin:2px 2px 0">Eerlijk volgens afspraak ${aandeelM()}/${100 - aandeelM()}: <b>${e.tekst}</b>. De kroon gaat naar wie meer doet dan zijn/haar deel.</p>`;
-  const rows = Object.entries(data.klusjes).map(([id, k]) => ({ k, c: counts(since, id) }))
+    `<p class="note" style="grid-column:1/-1;margin:2px 2px 0">Eerlijk volgens afspraak ${aandeelM()}/${100 - aandeelM()}: <b>${e.tekst}</b>. Klusjes die meer tijd kosten, leveren meer punten op. De kroon gaat naar wie meer doet dan zijn/haar deel.</p>`;
+  const rows = Object.entries(data.klusjes).map(([id, k]) => ({ id, k, c: punten(since, id) }))
     .filter(r => r.c.maarten + r.c.femke > 0)
     .sort((a, b) => (b.c.maarten + b.c.femke) - (a.c.maarten + a.c.femke));
-  $("#perKlus").innerHTML = rows.length ? rows.map(({ k, c }) => {
+  $("#perKlus").innerHTML = rows.length ? rows.map(({ id, k, c }) => {
     const t = c.maarten + c.femke;
-    return `<div class="rrow"><span>${esc(k.emoji)}</span><span class="nm">${esc(k.naam)}</span>
+    return `<div class="rrow"><span>${esc(k.emoji)}</span><span class="nm">${esc(k.naam)} <small style="color:var(--muted)">${puntenVan(k, id)} pt</small></span>
       <span class="num" style="color:${P.maarten.kleur}">${c.maarten}</span>
       <span class="mini"><i style="width:${c.maarten / t * 100}%;background:${P.maarten.kleur}"></i><i style="width:${c.femke / t * 100}%;background:${P.femke.kleur}"></i></span>
       <span class="num" style="color:${P.femke.kleur}">${c.femke}</span></div>`;
@@ -849,7 +870,7 @@ function renderHist() {
     const k = data.klusjes[e.k] || { naam: e.n || "Verwijderd klusje", emoji: "🗂️" };
     const tijd = new Date(e.t).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
     const uitPlan = Object.values(data.planning).some(x => x && x.gedaan && x.gedaan.log === e.id);
-    html += `<div class="hrow"><span class="e">${esc(k.emoji)}</span><span class="t">${esc(k.naam)}<small>${tijd}${uitPlan ? " · 📅 uit planning" : ""}</small></span>
+    html += `<div class="hrow"><span class="e">${esc(k.emoji)}</span><span class="t">${esc(k.naam)}<small>${tijd} · +${puntenLog(e)} pt${uitPlan ? " · 📅 uit planning" : ""}</small></span>
       <span class="pill ${e.w === "maarten" ? "m" : "f"}">${esc(P[e.w]?.naam || "?")}</span>
       <button class="x" data-del="${e.id}" aria-label="Verwijderen">×</button></div>`;
   }
@@ -861,7 +882,8 @@ let undoPlan = null, undoId = null, toastT = null;
 function done(kid, wie, btn, pid) {
   const k = data.klusjes[kid]; if (!k) return;
   const id = uid();
-  write("log/" + id, { k: kid, w: wie, t: Date.now(), n: k.naam, door: me || wie });
+  const pt = puntenVan(k, kid);
+  write("log/" + id, { k: kid, w: wie, t: Date.now(), n: k.naam, p: pt, door: me || wie });
   // afgevinkt vanuit de planning: precies dat item weghalen, anders het eerstvolgende binnen een week
   const pl = pid ? planList(kid).find(x => x.id === pid) : planList(kid).find(x => x.datum <= dkey(Date.now() + 7 * DAG));
   if (pl) write("planning/" + pl.id + "/gedaan", { w: wie, t: Date.now(), log: id });
@@ -870,7 +892,7 @@ function done(kid, wie, btn, pid) {
   const b = document.querySelector(`[data-done="${kid}"][data-wie="${wie}"]`);
   if (b) b.classList.add("pop");
   undoId = id;
-  toast(`${k.emoji} ${k.naam} – ${P[wie].naam} ✓`);
+  toast(`${k.emoji} ${k.naam} – ${P[wie].naam} +${pt} pt`);
 }
 function toast(msg) {
   $("#toastMsg").textContent = msg;
@@ -929,6 +951,7 @@ function editSheet(kid) {
   const k = kid ? data.klusjes[kid] : { naam: "", emoji: "🧹", elke: 7 };
   let emoji = k.emoji, elke = k.elke ?? 0;
   let maanden = Array.isArray(k.maanden) ? [...k.maanden] : [];
+  let pt = kid ? puntenVan(k, kid) : 2;
   let kcat = kid ? catVan(k) : (cat !== "alles" && cat !== "binnen" ? cat : "overig");
   const c = kid ? counts(0, kid) : null;
   openSheet(`<h2>${kid ? "Klusje aanpassen" : "Nieuw klusje"}</h2>
@@ -938,6 +961,8 @@ function editSheet(kid) {
     <label class="f">Icoon</label><div class="emojis" id="kEmo">${EMOJIS.map(e => `<button data-e="${e}" class="${e === emoji ? "on" : ""}">${e}</button>`).join("")}</div>
     <label class="f">Uitleg: hoe doe je het?</label>
     <textarea class="inp" id="kUitleg" placeholder="Bijv. welk programma, welke temperatuur, waar staat het schoonmaakmiddel…" maxlength="1000">${esc(k.uitleg || "")}</textarea>
+    <label class="f">Punten: hoeveel tijd kost het?</label>
+    <div class="freq" id="kPt">${PUNTEN.map(([n, l]) => `<button class="chip ${n === pt ? "on" : ""}" data-p="${n}"><b>${n}</b> · ${l}</button>`).join("")}</div>
     <label class="f">Seizoen <span style="font-weight:400">(niks gekozen = hele jaar)</span></label>
     <div class="maanden" id="kMnd">${MND.map((m, i) => `<button data-m="${i + 1}" class="${maanden.includes(i + 1) ? "on" : ""}">${m}</button>`).join("")}</div>
     <label class="f">Hoe vaak?</label><div class="freq" id="kFreq">${FREQ.map(([n, l]) => `<button class="chip ${n === elke ? "on" : ""}" data-n="${n}">${l}</button>`).join("")}</div>
@@ -946,13 +971,14 @@ function editSheet(kid) {
     ${kid ? `<button class="btn danger" id="kDel">Klusje verwijderen</button>` : ""}`);
   $("#kEmo").onclick = e => { const b = e.target.closest("[data-e]"); if (!b) return; emoji = b.dataset.e; $("#kEmo").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
   $("#kFreq").onclick = e => { const b = e.target.closest("[data-n]"); if (!b) return; elke = +b.dataset.n; $("#kFreq").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
+  $("#kPt").onclick = e => { const b = e.target.closest("[data-p]"); if (!b) return; pt = +b.dataset.p; $("#kPt").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
   $("#kCat").onclick = e => { const b = e.target.closest("[data-c]"); if (!b) return; kcat = b.dataset.c; $("#kCat").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
   $("#kMnd").onclick = e => { const b = e.target.closest("[data-m]"); if (!b) return; const m = +b.dataset.m;
     maanden = maanden.includes(m) ? maanden.filter(x => x !== m) : [...maanden, m]; b.classList.toggle("on", maanden.includes(m)); };
   $("#kSave").onclick = () => {
     const naam = $("#kNaam").value.trim(); if (!naam) { $("#kNaam").focus(); return; }
     const huidig = kid ? (data.klusjes[kid] || {}) : {};   // alle bestaande velden behouden
-    write("klusjes/" + (kid || uid()), { ...huidig, naam, emoji, elke, cat: kcat, uitleg: $("#kUitleg").value.trim(),
+    write("klusjes/" + (kid || uid()), { ...huidig, naam, emoji, elke, cat: kcat, punten: pt, uitleg: $("#kUitleg").value.trim(),
       maanden: maanden.length && maanden.length < 12 ? maanden.sort((a, b) => a - b) : null, v: huidig.v ?? k.v ?? Object.keys(data.klusjes).length });
     closeSheet();
   };
@@ -1025,7 +1051,7 @@ function detailSheet(kid) {
     <div class="uitleg ${k.uitleg ? "" : "leeg"}">${k.uitleg ? esc(k.uitleg) : "Nog geen uitleg. Tik op Aanpassen om er een te schrijven."}</div>
     ${pl.length ? `<label class="f">Ingepland</label><div class="rows">${pl.map(planRow).join("")}</div>` : ""}
     <label class="f">Laatst gedaan</label>
-    <p class="note" style="margin-top:0">${recent.length ? recent.map(e => `${ago(e.t)} · ${esc(P[e.w]?.naam || "?")}`).join("<br>") : "Nog nooit."}<br>Totaal: ${P.maarten.naam} ${c.maarten}× · ${P.femke.naam} ${c.femke}×</p>
+    <p class="note" style="margin-top:0">${recent.length ? recent.map(e => `${ago(e.t)} · ${esc(P[e.w]?.naam || "?")}`).join("<br>") : "Nog nooit."}<br>Totaal: ${P.maarten.naam} ${c.maarten}× · ${P.femke.naam} ${c.femke}×<br>Levert ${puntenVan(k, kid)} punt${puntenVan(k, kid) > 1 ? "en" : ""} op per keer.</p>
     <div class="btnrow"><button class="btn ghost" id="dEdit">✏️ Aanpassen</button><button class="btn primary" id="dPlan">📅 Inplannen</button></div>`);
   $("#dEdit").onclick = () => editSheet(kid);
   if (heeftLijst(k)) renderLijst();
