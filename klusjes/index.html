@@ -288,7 +288,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "23";   // moet gelijk zijn aan versie.json
+const VERSIE = "24";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -427,7 +427,7 @@ function connect() {
     online = true; setDot();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); maakBackup();
+    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -557,6 +557,15 @@ function migreer6() {
   save("pending", pending); flush();
 }
 
+// Was: drogen en ophangen (op verzoek) — alleen toevoegen als ze nog niet bestaan
+function migreer7() {
+  if (!loaded || !server.klusjes || (server.instellingen && server.instellingen.m7) || pending.some(op => op.p === "instellingen/m7")) return;
+  [["droger", "Wasdroger aanzetten", "🌀", 1], ["ophangen", "Was ophangen", "🧺", 2]].forEach(([id, naam, emoji, punten], i) =>
+    pending.push({ m: "PUT", seed: "nieuw", p: "klusjes/s-" + id, d: { naam, emoji, elke: 0, cat: "was", punten, v: 3 + i / 10 } }));
+  pending.push({ m: "PUT", u: 1, p: "instellingen/m7", d: true });
+  save("pending", pending); flush();
+}
+
 /* ---------- back-up: elke dag een kopie in de database (laatste 14 dagen) ---------- */
 function maakBackup() {
   if (!loaded || !server.klusjes || !Object.keys(server.klusjes).length) return;
@@ -611,9 +620,10 @@ function periodStart(p) {
 const PUNTEN = [[1, "± 5 min"], [2, "± 15 min"], [3, "± 30 min"], [4, "± 1 uur"], [5, "1,5 uur +"]];
 const STANDAARD_PUNTEN = {
   // 1 punt · ± 5 min
+  "s-wittewas": 1, "s-normalewas": 1, "s-handdoeken": 1, "s-droger": 1,
   "s-vaatwasser": 1, "s-spiegel": 1, "s-containers": 1, "s-plantenwater": 1, "s-rookmelder": 1, "s-cvbijvullen": 1, "s-ruitenwisser": 1, "s-buitenkraan": 1,
   // 2 punten · ± 15 min
-  "s-wittewas": 2, "s-normalewas": 2, "s-handdoeken": 2, "s-vouwen": 2, "s-wc": 2, "s-afstoffen": 2, "s-badmeubel": 2, "s-autostofzuigen": 2,
+  "s-ophangen": 2, "s-vouwen": 2, "s-wc": 2, "s-afstoffen": 2, "s-badmeubel": 2, "s-autostofzuigen": 2,
   "s-containersschoon": 2, "s-stoep": 2, "s-afzuigkap": 2, "s-radiatoren": 2,
   // 3 punten · ± 30 min
   "s-stofzuigen": 3, "s-dweilen": 3, "s-koelkast": 3, "s-tuinmeubels": 3, "s-bladeren": 3, "s-onkruid": 3,
@@ -911,7 +921,7 @@ $("#toastUndo").onclick = () => {
 };
 
 /* ---------- sheets ---------- */
-const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰","🚨","♨️","🚗","🌱","✂️","💧","🍂"];
+const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰","🚨","♨️","🚗","🌱","✂️","💧","🍂","🌀"];
 
 function openSheet(html) {
   $("#toast").classList.remove("show");
