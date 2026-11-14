@@ -286,6 +286,9 @@ function rebuild() {
   for (const op of pending) setPath(data, op.p, op.m === "DELETE" ? null : op.d);
   data.klusjes = data.klusjes || {};
   data.log = data.log || {};
+  for (const [id, k] of Object.entries(data.klusjes)) if (!k || typeof k !== "object" || typeof k.naam !== "string") delete data.klusjes[id];
+  for (const [id, e] of Object.entries(data.log)) if (!e || typeof e.t !== "number") delete data.log[id];
+  if (data.planning) for (const [id, x] of Object.entries(data.planning)) if (!x || typeof x.datum !== "string") delete data.planning[id];
   data.instellingen = data.instellingen || {};
   data.planning = data.planning || {};
   data.backups = data.backups || {};
@@ -306,7 +309,7 @@ function eerlijk(c) {
 function schoon(v) { if (v && typeof v === "object" && !Array.isArray(v)) { const o = {}; for (const [a, b] of Object.entries(v)) if (b !== null && b !== undefined) o[a] = schoon(b); return o; } return v; }
 function write(path, val) {
   val = schoon(val);
-  pending.push(val === null ? { m: "DELETE", p: path } : { m: "PUT", p: path, d: val });
+  pending.push(val === null ? { m: "DELETE", p: path, u: 1 } : { m: "PUT", p: path, d: val, u: 1 });
   save("pending", pending);
   rebuild(); render(); flush();
 }
@@ -322,7 +325,7 @@ function getPath(obj, path) {
 }
 // Standaard-klusjes (ook uit oudere versies, toen er nog geen uitleg-veld was) mogen nooit iets
 // overschrijven dat al in de database staat: alleen toevoegen als het klusje nog niet bestaat.
-const isSeed = op => op.seed || (op.m === "PUT" && /^klusjes\/s-[^/]+$/.test(op.p) && op.d && typeof op.d === "object" && !("uitleg" in op.d));
+const isSeed = op => !!op.seed || (!op.u && op.m === "PUT" && /^klusjes\/s-[^/]+$/.test(op.p) && op.d && typeof op.d === "object" && !("uitleg" in op.d));
 function dropStaleSeeds() {
   const voor = pending.length;
   const heeftKlusjes = server.klusjes && Object.keys(server.klusjes).length > 0;
@@ -344,7 +347,8 @@ async function flush() {
       const r = await fetch(base() + "/" + op.p + ".json", {
         method: op.m, body: op.m === "PUT" ? JSON.stringify(op.d) : undefined
       });
-      if (!r.ok) throw new Error("HTTP " + r.status);
+      if (r.status === 400) { pending.shift(); save("pending", pending); continue; }   // ongeldige wijziging: overslaan
+      if (!r.ok) throw new Error("HTTP " + r.status);                                  // bv. geen internet/regels: later opnieuw
       setPath(server, op.p, op.m === "DELETE" ? null : op.d);
       pending.shift();
       save("pending", pending); save("server", server);
@@ -379,7 +383,7 @@ function connect() {
   es.addEventListener("patch", onData("patch"));
   es.addEventListener("cancel", () => { online = false; setDot("Geen toegang tot database (regels?)"); });
   es.onopen = () => { online = true; setDot(); flush(); };
-  es.onerror = () => { online = false; setDot(); };
+  es.onerror = () => { online = false; loaded = false; setDot(); };
 }
 window.addEventListener("online", () => { flush(); if (!es || es.readyState === 2) connect(); });
 document.addEventListener("visibilitychange", () => {
@@ -417,17 +421,17 @@ function seedIfEmpty() {
 
 /* eenmalige aanpassing: was draaien als de mand vol is, niet wekelijks */
 function migreer() {
-  if (!server.klusjes || (server.instellingen && server.instellingen.m1)) return;
+  if (!loaded || !server.klusjes || (server.instellingen && server.instellingen.m1) || pending.some(op => op.p === "instellingen/m1")) return;
   for (const id of ["s-wittewas", "s-normalewas", "s-handdoeken"]) {
     const k = server.klusjes[id];
-    if (k && k.elke === 7) pending.push({ m: "PUT", p: "klusjes/" + id, d: { ...k, elke: 0, uitleg: k.uitleg || "Draaien als de wasmand vol is." } });
+    if (k && k.elke === 7) pending.push({ m: "PUT", u: 1, p: "klusjes/" + id, d: { ...k, elke: 0, uitleg: k.uitleg || "Draaien als de wasmand vol is." } });
   }
   pending.push({ m: "PUT", p: "instellingen/m1", d: true });
   save("pending", pending); flush();
 }
 
 function migreer2() {
-  if (!server.klusjes || (server.instellingen && server.instellingen.m2)) return;
+  if (!loaded || !server.klusjes || (server.instellingen && server.instellingen.m2) || pending.some(op => op.p === "instellingen/m2")) return;
   const nieuw = [
     ["dakgoot", "Dakgoot schoonmaken", "🍂", 365, [10, 11], "Als de bladeren van de bomen zijn."],
     ["tuinmeubels", "Tuinmeubels schoonmaken", "🪑", 365, [4, 5], ""],
@@ -441,13 +445,13 @@ function migreer2() {
 
 // Matras keren verwijderen (op verzoek)
 function migreer3() {
-  if (!server.klusjes || (server.instellingen && server.instellingen.m3)) return;
+  if (!loaded || !server.klusjes || (server.instellingen && server.instellingen.m3) || pending.some(op => op.p === "instellingen/m3")) return;
   if (server.klusjes["s-matras"]) {
     pending.push({ m: "DELETE", p: "klusjes/s-matras" });
     for (const [id, x] of Object.entries(server.planning || {})) if (x.k === "s-matras") pending.push({ m: "DELETE", p: "planning/" + id });
   }
   // Was opvouwen en strijken: wanneer nodig (alleen het veld "elke", uitleg blijft staan)
-  for (const id of ["s-vouwen", "s-strijken"]) if (server.klusjes[id] && server.klusjes[id].elke) pending.push({ m: "PUT", p: "klusjes/" + id + "/elke", d: 0 });
+  for (const id of ["s-vouwen", "s-strijken"]) if (server.klusjes[id] && server.klusjes[id].naam && server.klusjes[id].elke) pending.push({ m: "PUT", u: 1, p: "klusjes/" + id, d: { ...server.klusjes[id], elke: 0 } });
   pending.push({ m: "PUT", p: "instellingen/m3", d: true });
   save("pending", pending); flush();
 }
@@ -473,6 +477,7 @@ function herstel(bk) {
   for (const [id, e] of Object.entries(bk.log || {})) if (!data.log[id]) { write("log/" + id, e); n++; }
   return n;
 }
+const IN_APP = /; wv\)/.test(navigator.userAgent);
 async function exporteer() {
   const json = JSON.stringify({ app: "klusjes", t: Date.now(), klusjes: data.klusjes, planning: data.planning, log: data.log, instellingen: data.instellingen }, null, 1);
   const naam = "klusjes-backup-" + vandaagKey() + ".json";
@@ -480,8 +485,10 @@ async function exporteer() {
     const f = new File([json], naam, { type: "application/json" });
     if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: "Klusjes back-up" }); return; }
   } catch (e) { if (e && e.name === "AbortError") return; }
-  if (/; wv\)/.test(navigator.userAgent)) {     // Android-app: downloaden kan daar niet, dan naar klembord
-    try { await navigator.clipboard.writeText(json); toast("Back-up gekopieerd. Plak hem in een notitie of mail."); } catch { toast("Kopiëren lukte niet"); }
+  if (IN_APP) {     // Android-app: downloaden kan daar niet
+    try { await navigator.clipboard.writeText(json); toast("Back-up gekopieerd. Plak hem in een notitie of mail."); return; } catch {}
+    openSheet(`<h2>Back-up</h2><p class="note">Houd de tekst ingedrukt, kies <b>Alles selecteren</b> en dan <b>Kopiëren</b>. Plak hem in een notitie of mail aan jezelf.</p>
+      <textarea class="inp" readonly style="min-height:240px;font-size:12px">${esc(json)}</textarea>`);
     return;
   }
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([json], { type: "application/json" })); a.download = naam;
@@ -711,13 +718,14 @@ function renderHist() {
 }
 
 /* ---------- acties ---------- */
-let undoId = null, toastT = null;
+let undoPlan = null, undoId = null, toastT = null;
 function done(kid, wie, btn) {
   const k = data.klusjes[kid]; if (!k) return;
   const id = uid();
   write("log/" + id, { k: kid, w: wie, t: Date.now(), n: k.naam, door: me || wie });
   const pl = planList(kid).find(x => x.datum <= dkey(Date.now() + 7 * DAG));
   if (pl) write("planning/" + pl.id, null);
+  undoPlan = pl ? { id: pl.id, d: { k: pl.k, datum: pl.datum, wie: pl.wie } } : null;
   if (navigator.vibrate) navigator.vibrate(25);
   const b = document.querySelector(`[data-done="${kid}"][data-wie="${wie}"]`);
   if (b) b.classList.add("pop");
@@ -731,7 +739,8 @@ function toast(msg) {
 }
 $("#toastUndo").onclick = () => {
   if (undoId) write("log/" + undoId, null);
-  undoId = null; $("#toast").classList.remove("show");
+  if (undoId && undoPlan) write("planning/" + undoPlan.id, undoPlan.d);
+  undoId = null; undoPlan = null; $("#toast").classList.remove("show");
 };
 
 /* ---------- sheets ---------- */
@@ -825,6 +834,17 @@ function planSheet(kid) {
   };
 }
 
+function plakSheet() {
+  openSheet(`<h2>Back-up terugzetten</h2><p class="note">Plak hier de tekst van een eerder bewaarde back-up.</p>
+    <textarea class="inp" id="plak" style="min-height:200px;font-size:12px" placeholder='{"app":"klusjes", …'></textarea>
+    <button class="btn primary" id="plakOk">Herstellen</button>`);
+  $("#plakOk").onclick = () => {
+    try { const bk = JSON.parse($("#plak").value); if (!bk.klusjes) throw 0;
+      const n = herstel(bk); closeSheet(); toast(n ? `${n} ding(en) hersteld ✓` : "Niks te herstellen, alles staat er nog ✓");
+    } catch { alert("Dit is geen geldige Klusjes-back-up."); }
+  };
+}
+
 function settingsSheet(first) {
   const rules = `{\n  "rules": {\n    "huishoudens": {\n      "${code()}": { ".read": true, ".write": true }\n    }\n  }\n}`;
   openSheet(`<h2>${first ? "Wie ben jij?" : "Instellingen"}</h2>
@@ -869,7 +889,7 @@ function settingsSheet(first) {
       const n = herstel(data.backups[d]); closeSheet(); toast(n ? `${n} ding(en) hersteld ✓` : "Niks te herstellen, alles staat er nog ✓");
     });
     $("#bkExport").onclick = exporteer;
-    $("#bkImport").onclick = () => $("#bkFile").click();
+    $("#bkImport").onclick = () => IN_APP ? plakSheet() : $("#bkFile").click();
     $("#bkFile").onchange = async () => {
       const f = $("#bkFile").files[0]; if (!f) return;
       try { const bk = JSON.parse(await f.text()); if (!bk.klusjes) throw 0;
