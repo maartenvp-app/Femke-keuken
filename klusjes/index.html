@@ -307,7 +307,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "36";   // moet gelijk zijn aan versie.json
+const VERSIE = "37";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -449,7 +449,7 @@ function connect() {
     online = true; setDot();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); migreer8(); migreer9(); migreer10(); maakBackup();
+    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); migreer8(); migreer9(); migreer10(); migreer11(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -623,6 +623,10 @@ function migreer10() {
     ["snoeien", "Heg en struiken snoeien", "✂️", 365, [6], "buiten", 3],
     ["olie", "Olie en koelvloeistof auto controleren", "🛢️", 91, [], "auto", 1],
   ]);
+}
+
+function migreer11() {
+  voegToe("m11", [["cameras", "Camera's opladen", "📷", 0, [], "techniek", 1]]);
 }
 
 /* ---------- back-up: elke dag een kopie in de database (laatste 14 dagen) ---------- */
@@ -831,7 +835,7 @@ const VOLGORDE = [
   // auto
   "s-autowassen", "s-autostofzuigen", "s-ruitenwisser", "s-olie",
   // techniek
-  "s-cvbijvullen", "s-rookmelder", "s-aardlek", "s-radiatoren",
+  "s-cvbijvullen", "s-cameras", "s-rookmelder", "s-aardlek", "s-radiatoren",
 ];
 const rang = x => {
   const eigen = data.volgorde && data.volgorde[x.id];
@@ -1008,7 +1012,7 @@ $("#toastUndo").onclick = () => {
 };
 
 /* ---------- sheets ---------- */
-const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰","🚨","♨️","🚗","🌱","✂️","💧","🍂","🌀","⚡","🥣","🥫","🧱","🌼","🛢️"];
+const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰","🚨","♨️","🚗","🌱","✂️","💧","🍂","🌀","⚡","🥣","🥫","🧱","🌼","🛢️","📷"];
 
 function openSheet(html, houdToast) {
   if (!houdToast) $("#toast").classList.remove("show");
