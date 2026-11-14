@@ -376,7 +376,7 @@ function connect() {
     online = true; setDot();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer(); migreer2(); migreer3(); maakBackup();
+    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -456,6 +456,28 @@ function migreer3() {
   save("pending", pending); flush();
 }
 
+// Buitenklusjes (op verzoek) — alleen toevoegen als ze nog niet bestaan
+function migreer4() {
+  if (!loaded || !server.klusjes || (server.instellingen && server.instellingen.m4) || pending.some(op => op.p === "instellingen/m4")) return;
+  const nieuw = [
+    // id, naam, emoji, elke (dagen, 0 = wanneer nodig), maanden ([] = hele jaar)
+    ["autowassen", "Auto wassen", "🚗", 30, []],
+    ["autostofzuigen", "Auto vanbinnen stofzuigen", "🧹", 30, []],
+    ["buitenkraan", "Buitenkraan afsluiten en aftappen", "🚿", 365, [11]],
+    ["containers", "Containers buiten zetten", "🗑️", 7, []],
+    ["containersschoon", "Containers schoonmaken", "🧼", 91, [4, 5, 6, 7, 8, 9]],
+    ["stoep", "Stoep en tegelpad vegen", "🧹", 14, []],
+    ["plantenwater", "Planten water geven bij droogte", "💧", 0, [6, 7, 8]],
+    ["bladeren", "Bladeren opruimen", "🍂", 7, [10, 11]],
+    ["siergrassen", "Siergrassen terugknippen", "✂️", 365, [2, 3]],
+    ["onkruid", "Onkruid wieden", "🌱", 14, [4, 5, 6, 7, 8, 9, 10]],
+  ];
+  nieuw.forEach(([id, naam, emoji, elke, maanden], i) =>
+    pending.push({ m: "PUT", seed: "nieuw", p: "klusjes/s-" + id, d: { naam, emoji, elke, cat: id.startsWith("auto") ? "auto" : "buiten", ...(maanden.length ? { maanden } : {}), v: 200 + i } }));
+  pending.push({ m: "PUT", u: 1, p: "instellingen/m4", d: true });
+  save("pending", pending); flush();
+}
+
 /* ---------- back-up: elke dag een kopie in de database (laatste 14 dagen) ---------- */
 function maakBackup() {
   if (!loaded || !server.klusjes || !Object.keys(server.klusjes).length) return;
@@ -515,9 +537,10 @@ function status(k, kid) {
   if (seizoen(k)) {
     if (!inSeizoen(k)) return { order: 2e9, label: "Weer in " + volgendeSeizoenMaand(k), cls: "none", last, uit: true };
     const start = seizoenStart(k);
-    if (!k.elke || k.elke >= 30) {
+    if (!k.elke) return { order: 9e8, label: "Wanneer nodig", cls: "none", last };
+    if (k.elke >= 30) {
       if (!last || last.t < start) return { order: -5e5, label: "Dit seizoen nog doen", cls: "today", last };
-      if (!k.elke || startOfDay(last.t) + k.elke * DAG > Date.now()) return { order: 8e8, label: "Gedaan dit seizoen ✓", cls: "", last };
+      if (startOfDay(last.t) + k.elke * DAG > Date.now()) return { order: 8e8, label: "Gedaan dit seizoen ✓", cls: "", last };
     } else if (!last || last.t < start) return { order: -1e6, label: "Nog niet gedaan", cls: "late", last };
   }
   if (!k.elke) return { order: 9e9, label: "Wanneer nodig", cls: "none", last };
@@ -576,13 +599,14 @@ const wieTxt = w => w ? P[w].naam : "Samen / wie kan";
 /* ---------- weergave ---------- */
 let tab = "klusjes", periode = "week", filter = "alles", cat = "alles", zoek = "";
 const FILTERS = [["alles", "Alles"], ["nu", "Nu te doen"], ["week", "Wekelijks"], ["periodiek", "Periodiek"]];
-const CATS = [["was", "🧺", "Was"], ["schoonmaak", "🧽", "Schoonmaak"], ["keuken", "🍽️", "Keuken"], ["buiten", "🌳", "Buiten"], ["overig", "📦", "Overig"]];
+const CATS = [["was", "🧺", "Was"], ["schoonmaak", "🧽", "Schoonmaak"], ["keuken", "🍽️", "Keuken"], ["buiten", "🌳", "Buiten"], ["auto", "🚗", "Auto"], ["overig", "📦", "Overig"]];
 const CAT_NAAM = Object.fromEntries(CATS.map(([k, e, n]) => [k, e + " " + n]));
 // Categorie raden uit de naam als die nog niet is gekozen (er wordt niks in de database aangepast)
 function catVan(k) {
   if (k.cat && CAT_NAAM[k.cat]) return k.cat;
   const n = (k.naam || "").toLowerCase();
-  if (/buiten|tuin|dakgoot|gras|heg|onkruid|terras|schutting|auto|kliko|container|vuilnis/.test(n)) return "buiten";
+  if (/\bauto|wagen|tanken|banden/.test(n)) return "auto";
+  if (/buiten|tuin|dakgoot|gras|heg|onkruid|terras|schutting|kliko|container|vuilnis/.test(n)) return "buiten";
   if (/\bwas\b|was |wasmachine|handdoek|strijk|vouw|droger/.test(n) || /was$/.test(n)) return "was";
   if (/vaatwas|afwas|koelkast|oven|vriezer|keuken|koken|magnetron|boodschap|aanrecht/.test(n)) return "keuken";
   if (/stofzuig|dweil|wc|toilet|badkamer|spiegel|stof|ramen|poets|schoon|bed|matras|douche|lappen/.test(n)) return "schoonmaak";
@@ -620,7 +644,7 @@ function renderKlusjes() {
   if (filter === "nu") items = items.filter(x => x.s.cls === "late" || x.s.cls === "today");
   if (filter === "week") items = items.filter(x => !isPeriodiek(x.k));
   if (filter === "periodiek") items = items.filter(x => isPeriodiek(x.k));
-  if (cat === "binnen") items = items.filter(x => catVan(x.k) !== "buiten");
+  if (cat === "binnen") items = items.filter(x => !["buiten", "auto"].includes(catVan(x.k)));
   else if (cat !== "alles") items = items.filter(x => catVan(x.k) === cat);
   const q = zoek.trim().toLowerCase();
   if (q) items = items.filter(x => (x.k.naam + " " + (x.k.uitleg || "") + " " + CAT_NAAM[catVan(x.k)]).toLowerCase().includes(q));
