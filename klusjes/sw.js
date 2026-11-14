@@ -1,5 +1,5 @@
 // Werkt offline: haalt altijd eerst de nieuwste versie op, valt terug op de cache zonder internet.
-const CACHE = "klusjes-v18";
+const CACHE = "klusjes-v19";
 const FILES = ["./", "index.html", "config.js", "versie.json", "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {

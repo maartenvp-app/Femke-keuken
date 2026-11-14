@@ -149,8 +149,8 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
 @media (max-width:380px){
   .card{flex-wrap:wrap}
   .card .main{flex-basis:100%}
-  .who{width:100%;padding-left:55px;gap:8px}
-  .who button{flex:1;height:40px;border-radius:12px}
+  .card .who{width:100%;padding-left:55px;gap:8px}
+  .card .who button{flex:1;height:40px;border-radius:12px}
 }
 textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .uitleg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;white-space:pre-wrap;line-height:1.5;font-size:15px;-webkit-user-select:text;user-select:text}
@@ -205,6 +205,11 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .stap b{min-width:26px;text-align:center;font-size:15px}
 .litem .aant{font-weight:700;color:var(--accent);margin-right:4px}
 .lijst-wis{font-size:13.5px;font-weight:600;color:var(--late);padding:10px 0 2px}
+.who.mini{gap:5px;flex:none}
+.prow .t{min-width:0}
+.who.mini button{width:38px;height:38px;font-size:14px}
+.who.mini .m.toeg{box-shadow:0 0 0 2.5px var(--m)}
+.who.mini .f.toeg{box-shadow:0 0 0 2.5px var(--f)}
 .hidden{display:none!important}
 </style>
 </head>
@@ -279,7 +284,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "18";   // moet gelijk zijn aan versie.json
+const VERSIE = "19";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -748,9 +753,13 @@ function renderKlusjes() {
 
 function planRow(x) {
   const k = data.klusjes[x.k]; const late = x.datum < vandaagKey();
+  const voor = x.wie ? "Voor " + P[x.wie].naam : "Samen / wie kan";
   return `<div class="prow"><span class="e">${esc(k.emoji)}</span>
-    <button class="t" data-open="${x.k}">${esc(k.naam)}<small>${late ? "Gepland " + dagNaam(x.datum).toLowerCase() : ""}</small></button>
-    <span class="pill ${x.wie === "maarten" ? "m" : x.wie === "femke" ? "f" : "s"}">${esc(x.wie ? P[x.wie].naam : "Samen")}</span>
+    <button class="t" data-open="${x.k}">${esc(k.naam)}<small>${voor}${late ? " · gepland " + dagNaam(x.datum).toLowerCase() : ""}</small></button>
+    <span class="who mini">
+      <button class="m ${x.wie === "maarten" ? "toeg" : ""}" data-done="${x.k}" data-wie="maarten" data-pid="${x.id}" aria-label="${P.maarten.naam} deed het">M</button>
+      <button class="f ${x.wie === "femke" ? "toeg" : ""}" data-done="${x.k}" data-wie="femke" data-pid="${x.id}" aria-label="${P.femke.naam} deed het">F</button>
+    </span>
     <button class="x" data-unplan="${x.id}" aria-label="Uit planning halen">×</button></div>`;
 }
 function renderBoodschappen() {
@@ -827,11 +836,12 @@ function renderHist() {
 
 /* ---------- acties ---------- */
 let undoPlan = null, undoId = null, toastT = null;
-function done(kid, wie, btn) {
+function done(kid, wie, btn, pid) {
   const k = data.klusjes[kid]; if (!k) return;
   const id = uid();
   write("log/" + id, { k: kid, w: wie, t: Date.now(), n: k.naam, door: me || wie });
-  const pl = planList(kid).find(x => x.datum <= dkey(Date.now() + 7 * DAG));
+  // afgevinkt vanuit de planning: precies dat item weghalen, anders het eerstvolgende binnen een week
+  const pl = pid ? planList(kid).find(x => x.id === pid) : planList(kid).find(x => x.datum <= dkey(Date.now() + 7 * DAG));
   if (pl) write("planning/" + pl.id, null);
   undoPlan = pl ? { id: pl.id, d: { k: pl.k, datum: pl.datum, wie: pl.wie } } : null;
   if (navigator.vibrate) navigator.vibrate(25);
@@ -1129,7 +1139,7 @@ function settingsSheet(first) {
 document.body.addEventListener("click", e => {
   const t = e.target.closest("[data-cat],[data-done],[data-edit],[data-open],[data-plan],[data-unplan],[data-add],[data-filter],[data-per],[data-del],[data-tab]");
   if (!t) return;
-  if (t.dataset.done) return done(t.dataset.done, t.dataset.wie, t);
+  if (t.dataset.done) return done(t.dataset.done, t.dataset.wie, t, t.dataset.pid);
   if (t.dataset.edit) return editSheet(t.dataset.edit);
   if (t.dataset.open) return detailSheet(t.dataset.open);
   if (t.hasAttribute("data-plan")) return planSheet(t.dataset.plan || null);
