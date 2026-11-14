@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><defs><pattern id="br" width="40" height="20" patternUnits="userSpaceOnUse">
+  <rect width="40" height="20" fill="#b9644a"/>
+  <path d="M0 0.5H40M0 10.5H40M10 0.5V10.5M30 10.5V20.5" stroke="#e6b8a2" stroke-width="1.6" opacity=".75"/></pattern>
+<pattern id="cl" width="20" height="13" patternUnits="userSpaceOnUse">
+  <rect width="20" height="13" fill="#3b3f45"/><path d="M0 12.4H20" stroke="#272a2e" stroke-width="2"/></pattern><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe0f5"/><stop offset="1" stop-color="#eef7fc"/></linearGradient><linearGradient id="night" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d2a4a"/><stop offset="1" stop-color="#3a4f7a"/></linearGradient></defs><rect width="512" height="512" fill="url(#sky)"/><circle cx="430" cy="58" r="26" fill="#ffd25a"/><g transform="translate(4,40) scale(0.98)">
+  <!-- schoorstenen -->
+  <rect x="120" y="34" width="16" height="36" rx="3" fill="#2b2d30"/><rect x="114" y="30" width="28" height="8" rx="3" fill="#2b2d30"/>
+  <rect x="160" y="50" width="10" height="22" rx="2" fill="#4a4d52"/>
+  <!-- dak -->
+  <path d="M28 92 L60 64 H470 L496 92 Z" fill="#8a5a46"/>
+  <path d="M28 92 L60 64 H470 L496 92 Z" fill="none" stroke="#5e3a2c" stroke-width="3"/>
+  <path d="M70 72H462M64 82H480" stroke="#6e4535" stroke-width="2.5" stroke-dasharray="14 6"/>
+  <rect x="22" y="90" width="476" height="12" rx="3" fill="#2f3236"/>
+  <!-- muur -->
+  <rect x="40" y="102" width="440" height="330" fill="url(#br)"/>
+  <!-- bovenverdieping: donkere band met ramen en bekleding -->
+  <rect x="130" y="110" width="350" height="104" fill="#2b2e33"/>
+  <rect x="236" y="116" width="44" height="92" fill="url(#cl)"/>
+  <rect x="404" y="116" width="76" height="92" fill="url(#cl)"/>
+  <rect x="140" y="118" width="88" height="88" rx="2" fill="#cfe3ee" stroke="#1d1f22" stroke-width="7"/>
+  <rect x="288" y="118" width="110" height="88" rx="2" fill="#cfe3ee" stroke="#1d1f22" stroke-width="7"/>
+  <path d="M343 118V206" stroke="#1d1f22" stroke-width="6"/>
+  <path d="M150 128 l20 0 l-20 22 z M298 128 l20 0 l-20 22 z" fill="#fff" opacity=".55"/>
+  <rect x="128" y="212" width="354" height="7" fill="#5b3a2e"/>
+  <!-- regenpijpen -->
+  <rect x="56" y="100" width="9" height="330" rx="4" fill="#a7adb3"/><rect x="92" y="100" width="8" height="330" rx="4" fill="#232528"/>
+  <!-- luifel -->
+  <path d="M118 286 Q173 248 228 286" fill="none" stroke="#f4f1ea" stroke-width="12" stroke-linecap="round"/>
+  <path d="M124 284 L130 296 M222 284 L216 296" stroke="#f4f1ea" stroke-width="6" stroke-linecap="round"/>
+  <!-- deur -->
+  <rect x="136" y="292" width="74" height="140" rx="3" fill="#1b1c1f"/>
+  <rect x="148" y="304" width="20" height="34" rx="2" fill="#cfe3ee"/><rect x="148" y="344" width="20" height="34" rx="2" fill="#cfe3ee"/><rect x="148" y="384" width="20" height="34" rx="2" fill="#cfe3ee"/>
+  <rect x="190" y="340" width="5" height="44" rx="2.5" fill="#d5d8dc"/>
+  <!-- lamp -->
+  <rect x="244" y="300" width="14" height="22" rx="3" fill="#1b1c1f"/><rect x="247" y="304" width="8" height="13" rx="2" fill="#e9e2c8"/>
+  
+  <!-- ramen beneden -->
+  <rect x="290" y="300" width="74" height="104" rx="2" fill="#a9c8d8" stroke="#1d1f22" stroke-width="8"/>
+  <rect x="388" y="300" width="74" height="104" rx="2" fill="#a9c8d8" stroke="#1d1f22" stroke-width="8"/>
+  <path d="M300 312 l18 0 l-18 22 z M398 312 l18 0 l-18 22 z" fill="#fff" opacity=".5"/>
+  <rect x="284" y="404" width="86" height="8" fill="#5b3a2e"/><rect x="382" y="404" width="86" height="8" fill="#5b3a2e"/>
+  <!-- tuin -->
+  <path d="M30 432 H500 V470 H30Z" fill="#7a8a6a"/>
+  <path d="M220 432 L248 470 H120 L136 432Z" fill="#8b8f94"/>
+  <g fill="#5f8f4a">
+    <path d="M30 470 Q40 420 52 470 Q58 412 70 470 Q78 425 90 470 Q96 418 108 470Z"/>
+    <path d="M262 470 Q272 418 284 470 Q292 408 304 470 Q312 422 324 470 Q332 410 344 470 Q352 426 364 470Z"/>
+    <path d="M372 470 Q382 414 394 470 Q404 420 414 470 Q424 404 436 470 Q446 422 458 470 Q466 412 478 470 Q486 428 498 470Z" fill="#c9b36a"/>
+  </g>
+  <circle cx="352" cy="430" r="5" fill="#b07bc4"/><circle cx="362" cy="424" r="4" fill="#b07bc4"/><circle cx="440" cy="428" r="5" fill="#e98a9b"/><circle cx="300" cy="426" r="4" fill="#b07bc4"/>
+  <rect x="222" y="334" width="46" height="28" rx="4" fill="#f4ecd8" stroke="#5b3a2e" stroke-width="3"/>
+  <text x="245" y="356" font-family="Georgia, serif" font-weight="700" font-size="22" text-anchor="middle" fill="#2b2d30">12</text>
+</g></svg>
