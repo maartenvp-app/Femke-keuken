@@ -288,7 +288,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "22";   // moet gelijk zijn aan versie.json
+const VERSIE = "23";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -610,12 +610,17 @@ function periodStart(p) {
 /* ---------- punten: hoeveel tijd kost een klusje? ---------- */
 const PUNTEN = [[1, "± 5 min"], [2, "± 15 min"], [3, "± 30 min"], [4, "± 1 uur"], [5, "1,5 uur +"]];
 const STANDAARD_PUNTEN = {
+  // 1 punt · ± 5 min
   "s-vaatwasser": 1, "s-spiegel": 1, "s-containers": 1, "s-plantenwater": 1, "s-rookmelder": 1, "s-cvbijvullen": 1, "s-ruitenwisser": 1, "s-buitenkraan": 1,
+  // 2 punten · ± 15 min
   "s-wittewas": 2, "s-normalewas": 2, "s-handdoeken": 2, "s-vouwen": 2, "s-wc": 2, "s-afstoffen": 2, "s-badmeubel": 2, "s-autostofzuigen": 2,
   "s-containersschoon": 2, "s-stoep": 2, "s-afzuigkap": 2, "s-radiatoren": 2,
-  "s-strijken": 3, "s-stofzuigen": 3, "s-dweilen": 3, "s-boodschappen": 3, "s-koelkast": 3, "s-oven": 3, "s-tuinmeubels": 3, "s-autowassen": 3,
-  "s-bladeren": 3, "s-siergrassen": 3, "s-onkruid": 3,
-  "s-ramen": 4, "s-vriezer": 4, "s-dakgoot": 4, "s-ramenbuiten": 4,
+  // 3 punten · ± 30 min
+  "s-stofzuigen": 3, "s-dweilen": 3, "s-koelkast": 3, "s-tuinmeubels": 3, "s-bladeren": 3, "s-onkruid": 3,
+  // 4 punten · ± 1 uur
+  "s-strijken": 4, "s-boodschappen": 4, "s-oven": 4, "s-ramen": 4, "s-dakgoot": 4, "s-autowassen": 4, "s-siergrassen": 4,
+  // 5 punten · 1,5 uur of meer
+  "s-vriezer": 5, "s-ramenbuiten": 5,
 };
 const puntenVan = (k, id) => (k && k.punten >= 1 && k.punten <= 5) ? k.punten : (STANDAARD_PUNTEN[id] || 2);
 // punten van één afvinking: vastgelegd op het moment van afvinken (of anders de huidige waarde van het klusje)
