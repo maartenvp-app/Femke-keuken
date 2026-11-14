@@ -303,7 +303,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "30";   // moet gelijk zijn aan versie.json
+const VERSIE = "31";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -442,7 +442,7 @@ function connect() {
     online = true; setDot();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); migreer8(); migreer9(); maakBackup();
+    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); migreer8(); migreer9(); migreer10(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -604,6 +604,17 @@ function migreer9() {
     // id, naam, emoji, elke (dagen), maanden, categorie, punten
     ["aardlek", "Aardlekschakelaar testen", "⚡", 182, [], "techniek", 1],
     ["vaatwasserfilter", "Filter vaatwasser schoonmaken", "🍽️", 30, [], "keuken", 1],
+  ]);
+}
+
+function migreer10() {
+  voegToe("m10", [
+    ["magnetron", "Magnetron schoonmaken", "🥣", 30, [], "keuken", 1],
+    ["voorraad", "Voorraadkast checken op houdbaarheid", "🥫", 91, [], "keuken", 2],
+    ["terras", "Tegels en terras reinigen", "🧱", 365, [4], "buiten", 4],
+    ["bemesten", "Planten bemesten", "🌼", 30, [4, 5, 6, 7, 8], "buiten", 1],
+    ["snoeien", "Heg en struiken snoeien", "✂️", 365, [6], "buiten", 3],
+    ["olie", "Olie en koelvloeistof auto controleren", "🛢️", 91, [], "auto", 1],
   ]);
 }
 
@@ -963,7 +974,7 @@ $("#toastUndo").onclick = () => {
 };
 
 /* ---------- sheets ---------- */
-const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰","🚨","♨️","🚗","🌱","✂️","💧","🍂","🌀","⚡"];
+const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰","🚨","♨️","🚗","🌱","✂️","💧","🍂","🌀","⚡","🥣","🥫","🧱","🌼","🛢️"];
 
 function openSheet(html) {
   $("#toast").classList.remove("show");
