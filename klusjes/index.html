@@ -259,7 +259,7 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 <nav class="tabs">
   <button data-tab="klusjes" class="on"><span>✅</span>Klusjes</button>
   <button data-tab="boodschappen" style="position:relative"><span>🛒</span>Boodschappen<b id="tabTel" class="tabtel hidden"></b></button>
-  <button data-tab="planning"><span>📅</span>Planning</button>
+  <button data-tab="planning" style="position:relative"><span>📅</span>Planning<b id="tabPlan" class="tabtel hidden"></b></button>
   <button data-tab="score"><span>🏆</span>Score</button>
   <button data-tab="historie"><span>📜</span>Historie</button>
 </nav>
@@ -279,7 +279,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "17";   // moet gelijk zijn aan versie.json
+const VERSIE = "18";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -952,6 +952,9 @@ function renderLijst() {
   // teller op het tabblad
   const n = lijstItems(boodschappenId()).filter(x => !x.af).length, tb = $("#tabTel");
   if (tb) { tb.textContent = n; tb.classList.toggle("hidden", !n); }
+  // planning: wat vandaag (of eerder) gepland staat en nog niet gedaan is
+  const np = planList().filter(x => x.datum <= vandaagKey()).length, tp = $("#tabPlan");
+  if (tp) { tp.textContent = np; tp.classList.toggle("hidden", !np); }
 }
 function vulLijst(box, kid) {
   const items = lijstItems(kid), af = items.filter(x => x.af).length;
