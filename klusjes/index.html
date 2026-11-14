@@ -376,7 +376,7 @@ function connect() {
     online = true; setDot();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); maakBackup();
+    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -475,6 +475,23 @@ function migreer4() {
   nieuw.forEach(([id, naam, emoji, elke, maanden], i) =>
     pending.push({ m: "PUT", seed: "nieuw", p: "klusjes/s-" + id, d: { naam, emoji, elke, cat: id.startsWith("auto") ? "auto" : "buiten", ...(maanden.length ? { maanden } : {}), v: 200 + i } }));
   pending.push({ m: "PUT", u: 1, p: "instellingen/m4", d: true });
+  save("pending", pending); flush();
+}
+
+// Extra klusjes (op verzoek) — alleen toevoegen als ze nog niet bestaan
+function migreer5() {
+  if (!loaded || !server.klusjes || (server.instellingen && server.instellingen.m5) || pending.some(op => op.p === "instellingen/m5")) return;
+  const nieuw = [
+    // id, naam, emoji, elke (0 = wanneer nodig), maanden, categorie
+    ["afzuigkap", "Filter afzuigkap schoonmaken", "🍳", 91, [], "keuken"],
+    ["rookmelder", "Rookmelders testen", "🚨", 91, [], "overig"],
+    ["cvbijvullen", "Cv-ketel bijvullen", "🔥", 0, [], "overig"],
+    ["radiatoren", "Radiatoren ontluchten", "♨️", 365, [10], "overig"],
+    ["ruitenwisser", "Ruitenwisservloeistof bijvullen", "🚗", 0, [], "auto"],
+  ];
+  nieuw.forEach(([id, naam, emoji, elke, maanden, cat], i) =>
+    pending.push({ m: "PUT", seed: "nieuw", p: "klusjes/s-" + id, d: { naam, emoji, elke, cat, ...(maanden.length ? { maanden } : {}), v: 300 + i } }));
+  pending.push({ m: "PUT", u: 1, p: "instellingen/m5", d: true });
   save("pending", pending); flush();
 }
 
@@ -768,7 +785,7 @@ $("#toastUndo").onclick = () => {
 };
 
 /* ---------- sheets ---------- */
-const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰"];
+const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰","🚨","♨️","🚗","🌱","✂️","💧","🍂"];
 
 function openSheet(html) { $("#toast").classList.remove("show"); $("#sheet").innerHTML = `<div class="grab"></div>` + html; $("#sheet").classList.add("open"); $("#shade").classList.add("open"); }
 function closeSheet() { $("#sheet").classList.remove("open"); $("#shade").classList.remove("open"); }
