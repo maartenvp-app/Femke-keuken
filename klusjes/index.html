@@ -325,7 +325,10 @@ function getPath(obj, path) {
 const isSeed = op => op.seed || (op.m === "PUT" && /^klusjes\/s-[^/]+$/.test(op.p) && op.d && typeof op.d === "object" && !("uitleg" in op.d));
 function dropStaleSeeds() {
   const voor = pending.length;
-  pending = pending.filter(op => !(isSeed(op) && getPath(server, op.p) !== undefined));
+  const heeftKlusjes = server.klusjes && Object.keys(server.klusjes).length > 0;
+  // Standaardlijst alleen gebruiken voor een lege database (anders komen verwijderde klusjes terug).
+  // Nieuwe voorbeeldklusjes ("nieuw") alleen toevoegen als ze nog niet bestaan.
+  pending = pending.filter(op => !isSeed(op) || (op.seed === "nieuw" ? getPath(server, op.p) === undefined : !heeftKlusjes));
   if (pending.length !== voor) save("pending", pending);
 }
 let loaded = false;   // pas versturen als de actuele stand van de database binnen is
@@ -369,7 +372,7 @@ function connect() {
     online = true; setDot();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer(); migreer2(); maakBackup();
+    seedIfEmpty(); migreer(); migreer2(); migreer3(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -394,12 +397,12 @@ const STANDAARD = [
   // wekelijks
   ["wittewas", "Witte was", "🤍", 0], ["normalewas", "Normale was", "👕", 0], ["handdoeken", "Handdoeken was", "🧖", 0],
   ["stofzuigen", "Stofzuigen", "🧹", 7], ["dweilen", "Dweilen", "🪣", 7], ["wc", "Wc schoonmaken", "🚽", 7],
-  ["vouwen", "Was opvouwen", "🧺", 7], ["strijken", "Strijken", "👔", 7], ["afstoffen", "Afstoffen met doekje", "🪶", 7],
+  ["vouwen", "Was opvouwen", "🧺", 0], ["strijken", "Strijken", "👔", 0], ["afstoffen", "Afstoffen met doekje", "🪶", 7],
   ["badmeubel", "Badkamermeubel schoonmaken", "🧽", 7], ["spiegel", "Spiegel badkamer schoonmaken", "🪞", 7],
   ["vaatwasser", "Vaatwasser uitruimen", "🍽️", 1], ["boodschappen", "Boodschappen doen", "🛒", 7],
   // periodiek (voorbeelden, makkelijk aan te passen of te verwijderen)
   ["ramen", "Ramen lappen", "🪟", 30], ["koelkast", "Koelkast schoonmaken", "❄️", 30], ["oven", "Oven schoonmaken", "🔥", 91],
-  ["matras", "Matras keren", "🛏️", 182], ["vriezer", "Vriezer ontdooien", "🧊", 365]
+  ["vriezer", "Vriezer ontdooien", "🧊", 365]
 ];
 let seeded = false;
 function seedIfEmpty() {
@@ -431,8 +434,21 @@ function migreer2() {
     ["ramenbuiten", "Ramen buitenkant lappen", "🪟", 182, [4, 5, 9, 10], ""],
   ];
   nieuw.forEach(([id, naam, emoji, elke, maanden, uitleg], i) =>
-    pending.push({ m: "PUT", seed: true, p: "klusjes/s-" + id, d: { naam, emoji, elke, maanden, ...(uitleg ? { uitleg } : {}), v: 100 + i } }));
+    pending.push({ m: "PUT", seed: "nieuw", p: "klusjes/s-" + id, d: { naam, emoji, elke, maanden, ...(uitleg ? { uitleg } : {}), v: 100 + i } }));
   pending.push({ m: "PUT", p: "instellingen/m2", d: true });
+  save("pending", pending); flush();
+}
+
+// Matras keren verwijderen (op verzoek)
+function migreer3() {
+  if (!server.klusjes || (server.instellingen && server.instellingen.m3)) return;
+  if (server.klusjes["s-matras"]) {
+    pending.push({ m: "DELETE", p: "klusjes/s-matras" });
+    for (const [id, x] of Object.entries(server.planning || {})) if (x.k === "s-matras") pending.push({ m: "DELETE", p: "planning/" + id });
+  }
+  // Was opvouwen en strijken: wanneer nodig (alleen het veld "elke", uitleg blijft staan)
+  for (const id of ["s-vouwen", "s-strijken"]) if (server.klusjes[id] && server.klusjes[id].elke) pending.push({ m: "PUT", p: "klusjes/" + id + "/elke", d: 0 });
+  pending.push({ m: "PUT", p: "instellingen/m3", d: true });
   save("pending", pending); flush();
 }
 
