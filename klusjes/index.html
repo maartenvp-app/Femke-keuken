@@ -303,7 +303,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "29";   // moet gelijk zijn aan versie.json
+const VERSIE = "30";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -442,7 +442,7 @@ function connect() {
     online = true; setDot();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); migreer8(); maakBackup();
+    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); migreer8(); migreer9(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -589,6 +589,22 @@ function migreer8() {
   pending.push({ m: "PUT", seed: "nieuw", p: "klusjes/s-stofzuigenbeneden", d: { naam: "Stofzuigen beneden", emoji: "🧹", elke: 0, cat: "schoonmaak", punten: 1, v: (k && k.v != null ? k.v : 3) + 0.1 } });
   pending.push({ m: "PUT", u: 1, p: "instellingen/m8", d: true });
   save("pending", pending); flush();
+}
+
+// Algemene toevoeg-functie voor nieuwe klusjes (alleen als ze nog niet bestaan)
+function voegToe(marker, lijst) {
+  if (!loaded || !server.klusjes || (server.instellingen && server.instellingen[marker]) || pending.some(op => op.p === "instellingen/" + marker)) return;
+  lijst.forEach(([id, naam, emoji, elke, maanden, cat, punten], i) =>
+    pending.push({ m: "PUT", seed: "nieuw", p: "klusjes/s-" + id, d: { naam, emoji, elke, cat, punten, ...(maanden.length ? { maanden } : {}), v: 400 + i } }));
+  pending.push({ m: "PUT", u: 1, p: "instellingen/" + marker, d: true });
+  save("pending", pending); flush();
+}
+function migreer9() {
+  voegToe("m9", [
+    // id, naam, emoji, elke (dagen), maanden, categorie, punten
+    ["aardlek", "Aardlekschakelaar testen", "⚡", 182, [], "techniek", 1],
+    ["vaatwasserfilter", "Filter vaatwasser schoonmaken", "🍽️", 30, [], "keuken", 1],
+  ]);
 }
 
 /* ---------- back-up: elke dag een kopie in de database (laatste 14 dagen) ---------- */
@@ -753,7 +769,7 @@ function catVan(k) {
   if (k.cat && CAT_NAAM[k.cat]) return k.cat;
   const n = (k.naam || "").toLowerCase();
   if (/\bauto|wagen|tanken|banden|ruitenwis/.test(n)) return "auto";
-  if (/rookmelder|cv|ketel|radiator|ventilatie|wtw|meterstand|zekering|thermostaat|boiler/.test(n)) return "techniek";
+  if (/rookmelder|cv|ketel|radiator|ventilatie|wtw|meterstand|zekering|thermostaat|boiler|aardlek|meterkast/.test(n)) return "techniek";
   if (/buiten|tuin|dakgoot|gras|heg|onkruid|terras|schutting|kliko|container|vuilnis/.test(n)) return "buiten";
   if (/\bwas\b|was |wasmachine|handdoek|strijk|vouw|droger/.test(n) || /was$/.test(n)) return "was";
   if (/vaatwas|afwas|koelkast|oven|vriezer|keuken|koken|magnetron|boodschap|aanrecht/.test(n)) return "keuken";
@@ -947,7 +963,7 @@ $("#toastUndo").onclick = () => {
 };
 
 /* ---------- sheets ---------- */
-const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰","🚨","♨️","🚗","🌱","✂️","💧","🍂","🌀"];
+const EMOJIS = ["🤍","👔","🪞","🪶","🧊","🧖","🧹","🪣","🧽","🛁","🚽","🍽️","🍳","🧺","👕","🗑️","♻️","🛒","🛏️","🪴","🐾","🚗","🪟","🧼","🍰","🔧","📬","💡","🌿","❄️","🔥","🍰","🚨","♨️","🚗","🌱","✂️","💧","🍂","🌀","⚡"];
 
 function openSheet(html) {
   $("#toast").classList.remove("show");
