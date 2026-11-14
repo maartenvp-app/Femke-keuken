@@ -222,6 +222,13 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .prow.af .e{opacity:.6}
 .x.terug{font-size:19px;color:var(--accent);font-weight:700}
 .card p .ptn{color:var(--ink);font-weight:600}
+.rrow .re{font-size:20px;width:26px;text-align:center;flex:none}
+.rrow .nm2{flex:1;min-width:0;font-size:15px;line-height:1.3;overflow-wrap:break-word}
+.rrow .nm2 small{display:block;color:var(--muted);font-size:12.5px}
+.rrow .rs{flex:none;width:76px;display:flex;flex-direction:column;gap:5px}
+.rrow .rs .rn{display:flex;justify-content:space-between;font-size:15px}
+.rrow .rs .mini{width:100%}
+.duel .p small{display:block;line-height:1.35}
 .hidden{display:none!important}
 </style>
 </head>
@@ -296,7 +303,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "26";   // moet gelijk zijn aan versie.json
+const VERSIE = "28";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -837,7 +844,8 @@ function gedaanRow(x) {
 function renderPlanning() {
   const list = planList(), klaar = planGedaan();
   const vandaagKlaar = klaar.filter(x => x.gedaan.t >= startOfDay(Date.now())).length;
-  const klaarHtml = vandaagKlaar ? `<button class="note" data-tab="historie" style="display:block;margin:16px auto 0;text-align:center">✅ ${vandaagKlaar} gepland${vandaagKlaar > 1 ? "e klusjes" : " klusje"} vandaag afgevinkt · <u>bekijk in Historie</u></button>` : "";
+  const klaarHtml = vandaagKlaar ? `<p class="note" style="text-align:center;margin-top:18px">✅ ${vandaagKlaar} gepland${vandaagKlaar > 1 ? "e klusjes" : " klusje"} vandaag afgevinkt</p>
+    <button class="btn ghost" data-tab="historie" style="margin-top:8px">📜 Bekijk in Historie</button>` : "";
   if (!list.length) { $("#planlist").innerHTML = `<div class="empty">${klaar.length ? "Alles van de planning is gedaan 🎉" : "Nog niks ingepland. Plan een klusje op een dag en kies wie het doet."}</div>` + klaarHtml; return; }
   let html = "", dag = null;
   const vk = vandaagKey();
@@ -861,7 +869,7 @@ function renderScore() {
     const doel = w === "maarten" ? aandeelM() : 100 - aandeelM();
     const top = e.wie === w;
     return `<div class="p ${top ? "lead" : ""}" style="background:${P[w].zacht};color:${P[w].kleur}">
-      <span>${P[w].naam}${top ? " 👑" : ""}</span><b>${c[w]} <span style="font-size:15px;font-family:Inter,sans-serif;font-weight:600">pt</span></b><small>${aantal[w]} klusje${aantal[w] === 1 ? "" : "s"} · ${tot ? pct + "% · doel " + doel + "%" : "doel " + doel + "%"}</small></div>`;
+      <span>${P[w].naam}${top ? " 👑" : ""}</span><b>${c[w]} <span style="font-size:15px;font-family:Inter,sans-serif;font-weight:600">pt</span></b><small>${aantal[w]} klusje${aantal[w] === 1 ? "" : "s"}${tot ? " · " + pct + "%" : ""}<br>doel ${doel}%</small></div>`;
   };
   $("#duel").innerHTML = card("maarten") + card("femke") +
     `<p class="note" style="grid-column:1/-1;margin:2px 2px 0">Eerlijk volgens afspraak ${aandeelM()}/${100 - aandeelM()}: <b>${e.tekst}</b>. Klusjes die meer tijd kosten, leveren meer punten op. De kroon gaat naar wie meer doet dan zijn/haar deel.</p>`;
@@ -870,10 +878,10 @@ function renderScore() {
     .sort((a, b) => (b.c.maarten + b.c.femke) - (a.c.maarten + a.c.femke));
   $("#perKlus").innerHTML = rows.length ? rows.map(({ id, k, c }) => {
     const t = c.maarten + c.femke;
-    return `<div class="rrow"><span>${esc(k.emoji)}</span><span class="nm">${esc(k.naam)} <small style="color:var(--muted)">${puntenVan(k, id)} pt</small></span>
-      <span class="num" style="color:${P.maarten.kleur}">${c.maarten}</span>
-      <span class="mini"><i style="width:${c.maarten / t * 100}%;background:${P.maarten.kleur}"></i><i style="width:${c.femke / t * 100}%;background:${P.femke.kleur}"></i></span>
-      <span class="num" style="color:${P.femke.kleur}">${c.femke}</span></div>`;
+    return `<div class="rrow"><span class="re">${esc(k.emoji)}</span>
+      <span class="nm2">${esc(k.naam)}<small>${puntenVan(k, id)} pt per keer</small></span>
+      <span class="rs"><span class="rn"><b style="color:${P.maarten.kleur}">${c.maarten}</b><b style="color:${P.femke.kleur}">${c.femke}</b></span>
+      <span class="mini"><i style="width:${c.maarten / t * 100}%;background:${P.maarten.kleur}"></i><i style="width:${c.femke / t * 100}%;background:${P.femke.kleur}"></i></span></span></div>`;
   }).join("") : `<div class="empty">Nog niks afgevinkt in deze periode.</div>`;
 }
 
