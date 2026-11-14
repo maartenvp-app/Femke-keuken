@@ -167,6 +167,16 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .pill.late{background:var(--late-soft);color:var(--late)}
 .fab{display:block;width:100%;margin-top:14px;background:var(--ink);color:#fff;border-radius:14px;padding:14px;font-weight:600}
 .quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.maanden{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.maanden button{padding:9px 0;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:13.5px;font-weight:600;color:var(--muted)}
+.maanden button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.seizoen-kop{margin:22px 2px 8px;font-weight:600;color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+.card.uit{opacity:.55}
+.bk{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.bk:last-child{border-bottom:0}
+.bk span{flex:1;font-size:15px}
+.bk small{color:var(--muted);font-size:12.5px;display:block}
+.bk button{font-weight:600;color:var(--accent);padding:6px 4px}
 .hidden{display:none!important}
 </style>
 </head>
@@ -264,6 +274,7 @@ function rebuild() {
   data.log = data.log || {};
   data.instellingen = data.instellingen || {};
   data.planning = data.planning || {};
+  data.backups = data.backups || {};
 }
 // Eerlijke verdeling: welk deel van de klusjes Maarten als doel heeft (Femke de rest).
 const aandeelM = () => { const v = data.instellingen.aandeelM; return typeof v === "number" ? v : 40; };
@@ -278,7 +289,9 @@ function eerlijk(c) {
     tekst = `${P[ander].naam} loopt ${r} klusje${r > 1 ? "s" : ""} achter`; }
   return { tot, tM, verschil, tekst, wie };
 }
+function schoon(v) { if (v && typeof v === "object" && !Array.isArray(v)) { const o = {}; for (const [a, b] of Object.entries(v)) if (b !== null && b !== undefined) o[a] = schoon(b); return o; } return v; }
 function write(path, val) {
+  val = schoon(val);
   pending.push(val === null ? { m: "DELETE", p: path } : { m: "PUT", p: path, d: val });
   save("pending", pending);
   rebuild(); render(); flush();
@@ -295,7 +308,7 @@ function getPath(obj, path) {
 }
 // Standaard-klusjes (ook uit oudere versies, toen er nog geen uitleg-veld was) mogen nooit iets
 // overschrijven dat al in de database staat: alleen toevoegen als het klusje nog niet bestaat.
-const isSeed = op => op.seed || (op.m === "PUT" && /^klusjes\/s-/.test(op.p) && op.d && !("uitleg" in op.d));
+const isSeed = op => op.seed || (op.m === "PUT" && /^klusjes\/s-[^/]+$/.test(op.p) && op.d && typeof op.d === "object" && !("uitleg" in op.d));
 function dropStaleSeeds() {
   const voor = pending.length;
   pending = pending.filter(op => !(isSeed(op) && getPath(server, op.p) !== undefined));
@@ -342,7 +355,7 @@ function connect() {
     online = true; setDot();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer();
+    seedIfEmpty(); migreer(); migreer2(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -396,6 +409,55 @@ function migreer() {
   save("pending", pending); flush();
 }
 
+function migreer2() {
+  if (!server.klusjes || (server.instellingen && server.instellingen.m2)) return;
+  const nieuw = [
+    ["dakgoot", "Dakgoot schoonmaken", "🍂", 365, [10, 11], "Als de bladeren van de bomen zijn."],
+    ["tuinmeubels", "Tuinmeubels schoonmaken", "🪑", 365, [4, 5], ""],
+    ["ramenbuiten", "Ramen buitenkant lappen", "🪟", 182, [4, 5, 9, 10], ""],
+  ];
+  nieuw.forEach(([id, naam, emoji, elke, maanden, uitleg], i) =>
+    pending.push({ m: "PUT", seed: true, p: "klusjes/s-" + id, d: { naam, emoji, elke, maanden, ...(uitleg ? { uitleg } : {}), v: 100 + i } }));
+  pending.push({ m: "PUT", p: "instellingen/m2", d: true });
+  save("pending", pending); flush();
+}
+
+/* ---------- back-up: elke dag een kopie in de database (laatste 14 dagen) ---------- */
+function maakBackup() {
+  if (!loaded || !server.klusjes || !Object.keys(server.klusjes).length) return;
+  const dag = vandaagKey(), b = server.backups || {};
+  if (b[dag] || pending.some(op => op.p === "backups/" + dag)) return;
+  write("backups/" + dag, { t: Date.now(), door: me || "?", klusjes: server.klusjes, planning: server.planning || null, instellingen: { aandeelM: server.instellingen?.aandeelM ?? null } });
+  Object.keys(b).sort().slice(0, Math.max(0, Object.keys(b).length - 13)).forEach(oud => write("backups/" + oud, null));
+}
+// Herstellen vult alleen aan: ontbrekende klusjes terug, verdwenen uitleg terug. Er wordt nooit iets gewist.
+function herstel(bk) {
+  if (!bk || !bk.klusjes) return 0;
+  let n = 0;
+  for (const [id, k] of Object.entries(bk.klusjes)) {
+    const nu = data.klusjes[id];
+    if (!nu) { write("klusjes/" + id, k); n++; }
+    else if (k.uitleg && !(nu.uitleg || "").trim()) { write("klusjes/" + id + "/uitleg", k.uitleg); n++; }
+  }
+  for (const [id, x] of Object.entries(bk.planning || {})) if (!data.planning[id] && x.datum >= vandaagKey()) { write("planning/" + id, x); n++; }
+  for (const [id, e] of Object.entries(bk.log || {})) if (!data.log[id]) { write("log/" + id, e); n++; }
+  return n;
+}
+async function exporteer() {
+  const json = JSON.stringify({ app: "klusjes", t: Date.now(), klusjes: data.klusjes, planning: data.planning, log: data.log, instellingen: data.instellingen }, null, 1);
+  const naam = "klusjes-backup-" + vandaagKey() + ".json";
+  try {
+    const f = new File([json], naam, { type: "application/json" });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: "Klusjes back-up" }); return; }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  if (/; wv\)/.test(navigator.userAgent)) {     // Android-app: downloaden kan daar niet, dan naar klembord
+    try { await navigator.clipboard.writeText(json); toast("Back-up gekopieerd. Plak hem in een notitie of mail."); } catch { toast("Kopiëren lukte niet"); }
+    return;
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([json], { type: "application/json" })); a.download = naam;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
 /* ---------- berekeningen ---------- */
 const startOfDay = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 function logList() { return Object.entries(data.log).map(([id, e]) => ({ id, ...e })).sort((a, b) => b.t - a.t); }
@@ -413,6 +475,14 @@ function counts(since, kid) {
 }
 function status(k, kid) {
   const last = lastDone(kid);
+  if (seizoen(k)) {
+    if (!inSeizoen(k)) return { order: 2e9, label: "Weer in " + volgendeSeizoenMaand(k), cls: "none", last, uit: true };
+    const start = seizoenStart(k);
+    if (!k.elke || k.elke >= 30) {
+      if (!last || last.t < start) return { order: -5e5, label: "Dit seizoen nog doen", cls: "today", last };
+      if (!k.elke || startOfDay(last.t) + k.elke * DAG > Date.now()) return { order: 8e8, label: "Gedaan dit seizoen ✓", cls: "", last };
+    } else if (!last || last.t < start) return { order: -1e6, label: "Nog niet gedaan", cls: "late", last };
+  }
   if (!k.elke) return { order: 9e9, label: "Wanneer nodig", cls: "none", last };
   if (!last) return k.elke > 14
     ? { order: 5e8, label: "Nog niet gedaan", cls: "none", last }
@@ -435,7 +505,23 @@ function ago(t) {
 }
 const FREQ = [[1, "Elke dag"], [2, "Om de dag"], [3, "Elke 3 dagen"], [7, "Elke week"], [14, "Om de week"], [30, "Elke maand"], [61, "Elke 2 maanden"], [91, "Elk kwartaal"], [182, "Elk half jaar"], [365, "Elk jaar"], [0, "Wanneer nodig"]];
 const freqTxt = n => { const f = FREQ.find(x => x[0] === n); return f ? f[1].toLowerCase() : "elke " + n + " dagen"; };
-const isPeriodiek = k => !k.elke || k.elke > 14;
+const isPeriodiek = k => !k.elke || k.elke > 14 || seizoen(k);
+const MND = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+const MND_LANG = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"];
+const seizoen = k => Array.isArray(k.maanden) && k.maanden.length > 0 && k.maanden.length < 12;
+const inSeizoen = (k, d = new Date()) => !seizoen(k) || k.maanden.includes(d.getMonth() + 1);
+// begin van het huidige seizoen: terug in de tijd tot de eerste maand van dit aaneengesloten blok
+function seizoenStart(k) {
+  const d = new Date(); let y = d.getFullYear(), m = d.getMonth();
+  for (let i = 0; i < 11; i++) { const pm = (m + 11) % 12; if (!k.maanden.includes(pm + 1)) break; if (pm === 11) y--; m = pm; }
+  return new Date(y, m, 1).getTime();
+}
+function volgendeSeizoenMaand(k) {
+  const m = new Date().getMonth();
+  for (let i = 1; i <= 12; i++) { const n = (m + i) % 12; if (k.maanden.includes(n + 1)) return MND_LANG[n]; }
+  return "";
+}
+const seizoenTxt = k => seizoen(k) ? [...k.maanden].sort((a, b) => a - b).map(n => MND[n - 1]).join(", ") : "";
 const dkey = t => { const d = new Date(t); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 const vandaagKey = () => dkey(Date.now());
 const keyToTime = k => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d).getTime(); };
@@ -484,19 +570,22 @@ function renderKlusjes() {
   if (filter === "week") items = items.filter(x => !isPeriodiek(x.k));
   if (filter === "periodiek") items = items.filter(x => isPeriodiek(x.k));
   items.sort((a, b) => a.s.order - b.s.order || (a.k.v ?? 99) - (b.k.v ?? 99) || a.k.naam.localeCompare(b.k.naam));
-  const html = items.map(({ id, k, s }) => {
+  const kaart = ({ id, k, s }) => {
     const c = counts(since, id);
     const lastTxt = s.last ? `${ago(s.last.t)} · ${esc(P[s.last.w]?.naam || "?")}` : (!k.elke && k.uitleg ? esc(k.uitleg.split("\n")[0]) : freqTxt(k.elke).replace(/^./, c => c.toUpperCase()));
-    return `<div class="card">
+    return `<div class="card ${s.uit ? "uit" : ""}">
       <button class="main" data-open="${id}">
         <div class="emoji">${esc(k.emoji || "✨")}</div>
-        <div class="txt"><h3>${esc(k.naam)}${k.uitleg ? ` <span style="font-size:13px">📝</span>` : ""}</h3><p>${lastTxt}</p><span class="tag ${s.cls}">${s.label}</span>${(() => { const pl = planList(id)[0]; return pl ? ` <span class="plan">📅 ${dagNaam(pl.datum).split(" ")[0].toLowerCase()} · ${esc(wieTxt(pl.wie))}</span>` : ""; })()}</div>
+        <div class="txt"><h3>${esc(k.naam)}${k.uitleg ? ` <span style="font-size:13px">📝</span>` : ""}${seizoen(k) ? ` <span style="font-size:13px">🍂</span>` : ""}</h3><p>${lastTxt}</p><span class="tag ${s.cls}">${s.label}</span>${(() => { const pl = planList(id)[0]; return pl ? ` <span class="plan">📅 ${dagNaam(pl.datum).split(" ")[0].toLowerCase()} · ${esc(wieTxt(pl.wie))}</span>` : ""; })()}</div>
       </button>
       <div class="who">
         <button class="m" data-done="${id}" data-wie="maarten" aria-label="${P.maarten.naam} deed ${esc(k.naam)}">M${c.maarten ? `<span class="n">${c.maarten}</span>` : ""}</button>
         <button class="f" data-done="${id}" data-wie="femke" aria-label="${P.femke.naam} deed ${esc(k.naam)}">F${c.femke ? `<span class="n">${c.femke}</span>` : ""}</button>
       </div></div>`;
-  }).join("");
+  };
+  if (filter === "nu") items = items.filter(x => !x.s.uit);
+  const binnen = items.filter(x => !x.s.uit), buiten = items.filter(x => x.s.uit);
+  const html = binnen.map(kaart).join("") + (buiten.length ? `<div class="seizoen-kop">🍂 Buiten seizoen (${buiten.length})</div>` + buiten.map(kaart).join("") : "");
   $("#list").innerHTML = (html || `<div class="empty">${filter === "nu" ? "Niks dat nu moet. Lekker bezig! 🎉" : "Nog geen klusjes."}</div>`)
     + `<button class="add-card" data-add>＋ Klusje toevoegen</button>`;
 }
@@ -604,21 +693,28 @@ $("#shade").onclick = closeSheet;
 function editSheet(kid) {
   const k = kid ? data.klusjes[kid] : { naam: "", emoji: "🧹", elke: 7 };
   let emoji = k.emoji, elke = k.elke ?? 0;
+  let maanden = Array.isArray(k.maanden) ? [...k.maanden] : [];
   const c = kid ? counts(0, kid) : null;
   openSheet(`<h2>${kid ? "Klusje aanpassen" : "Nieuw klusje"}</h2>
     <label class="f">Naam</label><input class="inp" id="kNaam" value="${esc(k.naam)}" placeholder="Bijv. ramen lappen" maxlength="40">
     <label class="f">Icoon</label><div class="emojis" id="kEmo">${EMOJIS.map(e => `<button data-e="${e}" class="${e === emoji ? "on" : ""}">${e}</button>`).join("")}</div>
     <label class="f">Uitleg: hoe doe je het?</label>
     <textarea class="inp" id="kUitleg" placeholder="Bijv. welk programma, welke temperatuur, waar staat het schoonmaakmiddel…" maxlength="1000">${esc(k.uitleg || "")}</textarea>
+    <label class="f">Seizoen <span style="font-weight:400">(niks gekozen = hele jaar)</span></label>
+    <div class="maanden" id="kMnd">${MND.map((m, i) => `<button data-m="${i + 1}" class="${maanden.includes(i + 1) ? "on" : ""}">${m}</button>`).join("")}</div>
     <label class="f">Hoe vaak?</label><div class="freq" id="kFreq">${FREQ.map(([n, l]) => `<button class="chip ${n === elke ? "on" : ""}" data-n="${n}">${l}</button>`).join("")}</div>
     ${c ? `<p class="note">Totaal gedaan: ${P.maarten.naam} ${c.maarten}× · ${P.femke.naam} ${c.femke}×</p>` : ""}
     <button class="btn primary" id="kSave">Opslaan</button>
     ${kid ? `<button class="btn danger" id="kDel">Klusje verwijderen</button>` : ""}`);
   $("#kEmo").onclick = e => { const b = e.target.closest("[data-e]"); if (!b) return; emoji = b.dataset.e; $("#kEmo").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
   $("#kFreq").onclick = e => { const b = e.target.closest("[data-n]"); if (!b) return; elke = +b.dataset.n; $("#kFreq").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
+  $("#kMnd").onclick = e => { const b = e.target.closest("[data-m]"); if (!b) return; const m = +b.dataset.m;
+    maanden = maanden.includes(m) ? maanden.filter(x => x !== m) : [...maanden, m]; b.classList.toggle("on", maanden.includes(m)); };
   $("#kSave").onclick = () => {
     const naam = $("#kNaam").value.trim(); if (!naam) { $("#kNaam").focus(); return; }
-    write("klusjes/" + (kid || uid()), { naam, emoji, elke, uitleg: $("#kUitleg").value.trim(), v: k.v ?? Object.keys(data.klusjes).length });
+    const huidig = kid ? (data.klusjes[kid] || {}) : {};   // alle bestaande velden behouden
+    write("klusjes/" + (kid || uid()), { ...huidig, naam, emoji, elke, uitleg: $("#kUitleg").value.trim(),
+      maanden: maanden.length && maanden.length < 12 ? maanden.sort((a, b) => a - b) : null, v: huidig.v ?? k.v ?? Object.keys(data.klusjes).length });
     closeSheet();
   };
   if (kid) $("#kDel").onclick = () => {
@@ -635,7 +731,7 @@ function detailSheet(kid) {
   const s = status(k, kid), c = counts(0, kid), pl = planList(kid);
   const recent = logList().filter(e => e.k === kid).slice(0, 4);
   openSheet(`<h2>${esc(k.emoji)} ${esc(k.naam)}</h2>
-    <div class="meta"><span class="tag ${s.cls}">${s.label}</span><span class="tag none">${freqTxt(k.elke).replace(/^./, x => x.toUpperCase())}</span></div>
+    <div class="meta"><span class="tag ${s.cls}">${s.label}</span><span class="tag none">${freqTxt(k.elke).replace(/^./, x => x.toUpperCase())}</span>${seizoen(k) ? `<span class="tag none">🍂 ${seizoenTxt(k)}</span>` : ""}</div>
     <label class="f">Zo doe je het</label>
     <div class="uitleg ${k.uitleg ? "" : "leeg"}">${k.uitleg ? esc(k.uitleg) : "Nog geen uitleg. Tik op Aanpassen om er een te schrijven."}</div>
     ${pl.length ? `<label class="f">Ingepland</label><div class="rows">${pl.map(planRow).join("")}</div>` : ""}
@@ -693,6 +789,12 @@ function settingsSheet(first) {
     <input class="inp" id="dbUrl" value="${esc(load("dbUrl", ""))}" placeholder="${esc(CFG.FIREBASE_URL || "https://…firebasedatabase.app")}" inputmode="url" autocapitalize="off" autocorrect="off">
     <p class="note">Huis-code: <code>${esc(code())}</code></p>
     <button class="btn ghost" id="dbSave">Koppeling opslaan</button>
+    <label class="f">Back-ups</label>
+    <p class="note" style="margin-top:0">Elke dag wordt automatisch een kopie bewaard (laatste 14 dagen). Herstellen zet verdwenen klusjes en verdwenen uitleg terug. Er wordt nooit iets gewist of overschreven.</p>
+    <div class="rows" style="padding:2px 14px">${Object.entries(data.backups).sort((a, b) => b[0].localeCompare(a[0])).map(([d, bk]) =>
+      `<div class="bk"><span>${dagNaam(d)}<small>${Object.keys(bk.klusjes || {}).length} klusjes · ${Object.values(bk.klusjes || {}).filter(x => x.uitleg).length} met uitleg</small></span><button data-restore="${d}">Herstellen</button></div>`).join("") || `<div class="bk"><span><small>Nog geen back-up. Die wordt gemaakt zodra de app gekoppeld is.</small></span></div>`}</div>
+    <div class="btnrow"><button class="btn ghost" id="bkExport">⬇️ Back-up bewaren</button><button class="btn ghost" id="bkImport">⬆️ Uit bestand</button></div>
+    <input type="file" id="bkFile" accept=".json,application/json" class="hidden">
     <details style="margin-top:14px"><summary class="note" style="cursor:pointer">Database-regels voor Firebase</summary><p class="note"><code style="white-space:pre;display:block;padding:10px">${esc(rules)}</code></p></details>`}`);
   $("#meP").onclick = e => {
     const b = e.target.closest("[data-me]"); if (!b) return;
@@ -704,6 +806,22 @@ function settingsSheet(first) {
     const sl = $("#aandeel");
     sl.oninput = () => { $("#aM").textContent = P.maarten.naam + " " + sl.value + "%"; $("#aF").textContent = (100 - sl.value) + "% " + P.femke.naam; };
     sl.onchange = () => write("instellingen/aandeelM", +sl.value);
+  }
+  if (!first) {
+    $("#sheet").querySelectorAll("[data-restore]").forEach(b => b.onclick = () => {
+      const d = b.dataset.restore;
+      if (!confirm(`Verdwenen klusjes en uitleg herstellen uit de back-up van ${dagNaam(d).toLowerCase()}?`)) return;
+      const n = herstel(data.backups[d]); closeSheet(); toast(n ? `${n} ding(en) hersteld ✓` : "Niks te herstellen, alles staat er nog ✓");
+    });
+    $("#bkExport").onclick = exporteer;
+    $("#bkImport").onclick = () => $("#bkFile").click();
+    $("#bkFile").onchange = async () => {
+      const f = $("#bkFile").files[0]; if (!f) return;
+      try { const bk = JSON.parse(await f.text()); if (!bk.klusjes) throw 0;
+        if (!confirm(`Verdwenen klusjes en uitleg herstellen uit dit bestand?`)) return;
+        const n = herstel(bk); closeSheet(); toast(n ? `${n} ding(en) hersteld ✓` : "Niks te herstellen, alles staat er nog ✓");
+      } catch { alert("Dit is geen geldige Klusjes-back-up."); }
+    };
   }
   if (!first) $("#dbSave").onclick = () => {
     save("dbUrl", $("#dbUrl").value.trim());
