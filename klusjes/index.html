@@ -274,7 +274,7 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
   <section id="v-score" class="hidden">
     <div class="seg" id="seg"></div>
     <div class="duel" id="duel"></div>
-    <h2 class="sec">Punten per klusje</h2>
+    <h2 class="sec">Per klusje</h2>
     <div class="rows" id="perKlus"></div>
   </section>
 
@@ -307,7 +307,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "35";   // moet gelijk zijn aan versie.json
+const VERSIE = "36";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -943,13 +943,13 @@ function renderScore() {
   };
   $("#duel").innerHTML = card("maarten") + card("femke") +
     `<p class="note" style="grid-column:1/-1;margin:2px 2px 0">Eerlijk volgens afspraak ${aandeelM()}/${100 - aandeelM()}: <b>${e.tekst}</b>. Klusjes die meer tijd kosten, leveren meer punten op. De kroon gaat naar wie meer doet dan zijn/haar deel.</p>`;
-  const rows = Object.entries(data.klusjes).map(([id, k]) => ({ id, k, c: punten(since, id) }))
+  const rows = Object.entries(data.klusjes).map(([id, k]) => ({ id, k, c: counts(since, id) }))
     .filter(r => r.c.maarten + r.c.femke > 0)
     .sort((a, b) => (b.c.maarten + b.c.femke) - (a.c.maarten + a.c.femke));
   $("#perKlus").innerHTML = rows.length ? rows.map(({ id, k, c }) => {
     const t = c.maarten + c.femke;
     return `<div class="rrow"><span class="re">${esc(k.emoji)}</span>
-      <span class="nm2">${esc(k.naam)}<small>${puntenVan(k, id)} pt per keer</small></span>
+      <span class="nm2">${esc(k.naam)}</span>
       <span class="rs"><span class="rn"><b style="color:${P.maarten.kleur}">${c.maarten}</b><b style="color:${P.femke.kleur}">${c.femke}</b></span>
       <span class="mini"><i style="width:${c.maarten / t * 100}%;background:${P.maarten.kleur}"></i><i style="width:${c.femke / t * 100}%;background:${P.femke.kleur}"></i></span></span></div>`;
   }).join("") : `<div class="empty">Nog niks afgevinkt in deze periode.</div>`;
