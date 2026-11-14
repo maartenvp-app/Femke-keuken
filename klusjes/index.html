@@ -303,7 +303,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "28";   // moet gelijk zijn aan versie.json
+const VERSIE = "29";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -442,7 +442,7 @@ function connect() {
     online = true; setDot();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); maakBackup();
+    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); migreer8(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -581,6 +581,16 @@ function migreer7() {
   save("pending", pending); flush();
 }
 
+// Stofzuigen splitsen: hele huis (2 pt, bestaand klusje mét uitleg en historie) en beneden (1 pt, nieuw)
+function migreer8() {
+  if (!loaded || !server.klusjes || (server.instellingen && server.instellingen.m8) || pending.some(op => op.p === "instellingen/m8")) return;
+  const k = server.klusjes["s-stofzuigen"];
+  if (k && k.naam === "Stofzuigen") pending.push({ m: "PUT", u: 1, p: "klusjes/s-stofzuigen", d: { ...k, naam: "Stofzuigen hele huis", punten: 2 } });
+  pending.push({ m: "PUT", seed: "nieuw", p: "klusjes/s-stofzuigenbeneden", d: { naam: "Stofzuigen beneden", emoji: "🧹", elke: 0, cat: "schoonmaak", punten: 1, v: (k && k.v != null ? k.v : 3) + 0.1 } });
+  pending.push({ m: "PUT", u: 1, p: "instellingen/m8", d: true });
+  save("pending", pending); flush();
+}
+
 /* ---------- back-up: elke dag een kopie in de database (laatste 14 dagen) ---------- */
 function maakBackup() {
   if (!loaded || !server.klusjes || !Object.keys(server.klusjes).length) return;
@@ -635,13 +645,13 @@ function periodStart(p) {
 const PUNTEN = [[1, "± 5 min"], [2, "± 15 min"], [3, "± 30 min"], [4, "± 1 uur"], [5, "1,5 uur +"]];
 const STANDAARD_PUNTEN = {
   // 1 punt · ± 5 min
-  "s-wittewas": 1, "s-normalewas": 1, "s-handdoeken": 1, "s-droger": 1,
+  "s-wittewas": 1, "s-normalewas": 1, "s-handdoeken": 1, "s-droger": 1, "s-stofzuigenbeneden": 1,
   "s-vaatwasser": 1, "s-spiegel": 1, "s-containers": 1, "s-plantenwater": 1, "s-rookmelder": 1, "s-cvbijvullen": 1, "s-ruitenwisser": 1, "s-buitenkraan": 1,
   // 2 punten · ± 15 min
-  "s-ophangen": 2, "s-vouwen": 2, "s-wc": 2, "s-afstoffen": 2, "s-badmeubel": 2, "s-autostofzuigen": 2,
+  "s-ophangen": 2, "s-stofzuigen": 2, "s-vouwen": 2, "s-wc": 2, "s-afstoffen": 2, "s-badmeubel": 2, "s-autostofzuigen": 2,
   "s-containersschoon": 2, "s-stoep": 2, "s-afzuigkap": 2, "s-radiatoren": 2,
   // 3 punten · ± 30 min
-  "s-stofzuigen": 3, "s-dweilen": 3, "s-koelkast": 3, "s-tuinmeubels": 3, "s-bladeren": 3, "s-onkruid": 3,
+  "s-dweilen": 3, "s-koelkast": 3, "s-tuinmeubels": 3, "s-bladeren": 3, "s-onkruid": 3,
   // 4 punten · ± 1 uur
   "s-strijken": 4, "s-boodschappen": 4, "s-oven": 4, "s-ramen": 4, "s-dakgoot": 4, "s-autowassen": 4, "s-siergrassen": 4,
   // 5 punten · 1,5 uur of meer
