@@ -109,7 +109,8 @@ h2.sec{font-size:22px;margin:20px 0 10px}
 
 /* tab bar */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:#fffdf8f2;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;justify-content:center;padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:20}
-nav.tabs button{flex:1;max-width:150px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);padding:5px 0}
+.tabtel{position:absolute;top:0;left:50%;margin-left:6px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--late);color:#fff;font-size:11px;line-height:18px}
+nav.tabs button{flex:1;min-width:0;max-width:150px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;font-weight:600;color:var(--muted);padding:5px 0}
 nav.tabs button span{font-size:22px;filter:grayscale(1);opacity:.6}
 nav.tabs button.on{color:var(--ink)}
 nav.tabs button.on span{filter:none;opacity:1}
@@ -228,6 +229,12 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
     <p class="hint">Tik op <b>M</b> of <b>F</b> als die het klusje gedaan heeft. Tik op een klusje voor uitleg, inplannen of aanpassen.</p>
   </section>
 
+  <!-- BOODSCHAPPEN -->
+  <section id="v-boodschappen" class="hidden">
+    <div id="bsWidget" style="margin-top:14px"></div>
+    <div id="bsKlaar"></div>
+  </section>
+
   <!-- PLANNING -->
   <section id="v-planning" class="hidden">
     <button class="fab" data-plan="">📅 Klusje inplannen</button>
@@ -250,6 +257,7 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 
 <nav class="tabs">
   <button data-tab="klusjes" class="on"><span>✅</span>Klusjes</button>
+  <button data-tab="boodschappen" style="position:relative"><span>🛒</span>Boodschappen<b id="tabTel" class="tabtel hidden"></b></button>
   <button data-tab="planning"><span>📅</span>Planning</button>
   <button data-tab="score"><span>🏆</span>Score</button>
   <button data-tab="historie"><span>📜</span>Historie</button>
@@ -270,7 +278,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "15";   // moet gelijk zijn aan versie.json
+const VERSIE = "16";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -682,6 +690,7 @@ function render() {
   if (tab === "klusjes") renderKlusjes();
   if (tab === "score") renderScore();
   if (tab === "planning") renderPlanning();
+  if (tab === "boodschappen") renderBoodschappen();
   if (tab === "historie") renderHist();
   renderLijst();
 }
@@ -743,6 +752,16 @@ function planRow(x) {
     <span class="pill ${x.wie === "maarten" ? "m" : x.wie === "femke" ? "f" : "s"}">${esc(x.wie ? P[x.wie].naam : "Samen")}</span>
     <button class="x" data-unplan="${x.id}" aria-label="Uit planning halen">×</button></div>`;
 }
+function renderBoodschappen() {
+  const kid = boodschappenId();
+  if (!$("#bsWidget .lijstw") || $("#bsWidget .lijstw").dataset.kid !== kid) $("#bsWidget").innerHTML = lijstWidget(kid);  // invoerveld behouden
+  const k = data.klusjes[kid];
+  $("#bsKlaar").innerHTML = k ? `<label class="f">Boodschappen gedaan? Wie deed ze?</label>
+    <div class="btnrow" style="gap:10px"><button class="btn" style="margin-top:0;background:${P.maarten.zacht};color:${P.maarten.kleur}" data-done="${kid}" data-wie="maarten">✓ ${P.maarten.naam}</button>
+    <button class="btn" style="margin-top:0;background:${P.femke.zacht};color:${P.femke.kleur}" data-done="${kid}" data-wie="femke">✓ ${P.femke.naam}</button></div>
+    <p class="note">Telt mee in de score. ${(() => { const l = lastDone(kid); return l ? "Laatst: " + ago(l.t) + " door " + esc(P[l.w]?.naam || "?") + "." : ""; })()}</p>` : "";
+}
+
 function renderPlanning() {
   const list = planList();
   if (!list.length) { $("#planlist").innerHTML = `<div class="empty">Nog niks ingepland. Plan een klusje op een dag en kies wie het doet.</div>`; return; }
@@ -884,9 +903,22 @@ function lijstItems(kid) {
   return Object.entries(data.lijsten[kid] || {}).map(([id, x]) => ({ id, ...x })).filter(x => typeof x.tekst === "string")
     .sort((a, b) => (a.af ? 1 : 0) - (b.af ? 1 : 0) || (a.t || 0) - (b.t || 0));
 }
+// het klusje waar het boodschappenlijstje bij hoort
+function boodschappenId() {
+  const e = Object.entries(data.klusjes).find(([id, k]) => /boodschap/i.test(k.naam || ""));
+  return e ? e[0] : "s-boodschappen";
+}
+const lijstWidget = (kid) => `<div class="lijstw" data-kid="${kid}">
+  <div class="lijst-add"><input class="inp lijstIn" placeholder="Bijv. 2 melk, brood, kaas" enterkeyhint="done" autocomplete="off" maxlength="200"><button class="lijstOk" aria-label="Toevoegen">+</button></div>
+  <div class="lijstBox" style="margin-top:10px"></div></div>`;
 function renderLijst() {
-  const box = document.getElementById("lijstBox"); if (!box) return;
-  const kid = box.dataset.kid, items = lijstItems(kid), af = items.filter(x => x.af).length;
+  document.querySelectorAll(".lijstw").forEach(w => vulLijst(w.querySelector(".lijstBox"), w.dataset.kid));
+  // teller op het tabblad
+  const n = lijstItems(boodschappenId()).filter(x => !x.af).length, tb = $("#tabTel");
+  if (tb) { tb.textContent = n; tb.classList.toggle("hidden", !n); }
+}
+function vulLijst(box, kid) {
+  const items = lijstItems(kid), af = items.filter(x => x.af).length;
   box.innerHTML = (items.length ? `<div class="rows" style="padding:0 14px">${items.map(x =>
       `<div class="litem ${x.af ? "af" : ""}"><button class="vak" data-li="${x.id}">${x.af ? "✓" : ""}</button>
         <button class="tx" data-li="${x.id}">${x.af && (x.aantal || 1) > 1 ? `<span class="aant">${x.aantal}×</span>` : ""}${esc(x.tekst)}</button>
@@ -895,8 +927,8 @@ function renderLijst() {
     : `<p class="note" style="margin-top:4px">Lijstje is leeg.</p>`)
     + (af ? `<button class="lijst-wis" data-lwis>Afgevinkte weghalen (${af})</button>` : "");
 }
-function lijstToevoegen(kid) {
-  const inp = $("#lijstIn"); const tekst = inp.value.trim(); if (!tekst) return;
+function lijstToevoegen(kid, inp) {
+  const tekst = inp.value.trim(); if (!tekst) return;
   for (const t of tekst.split(/\n|,(?=\s*\S)/).map(x => x.trim()).filter(Boolean)) {   // meerdere tegelijk met komma's
     // aantal herkennen: "2 melk", "2x melk", "melk 2", "melk 2x"
     let m, aantal = 1, naam = t;
@@ -917,9 +949,7 @@ function detailSheet(kid) {
   const recent = logList().filter(e => e.k === kid).slice(0, 4);
   openSheet(`<h2>${esc(k.emoji)} ${esc(k.naam)}</h2>
     <div class="meta"><span class="tag ${s.cls}">${s.label}</span><span class="tag none">${freqTxt(k.elke).replace(/^./, x => x.toUpperCase())}</span>${seizoen(k) ? `<span class="tag none">🍂 ${seizoenTxt(k)}</span>` : ""}</div>
-    ${heeftLijst(k) ? `<label class="f">🛒 Lijstje</label>
-      <div class="lijst-add"><input class="inp" id="lijstIn" placeholder="Bijv. 2 melk, brood, kaas" enterkeyhint="done" autocomplete="off" maxlength="200"><button id="lijstOk" aria-label="Toevoegen">+</button></div>
-      <div id="lijstBox" data-kid="${kid}" style="margin-top:10px"></div>` : ""}
+    ${heeftLijst(k) ? `<label class="f">🛒 Lijstje</label>${lijstWidget(kid)}` : ""}
     <label class="f">Zo doe je het</label>
     <div class="uitleg ${k.uitleg ? "" : "leeg"}">${k.uitleg ? esc(k.uitleg) : "Nog geen uitleg. Tik op Aanpassen om er een te schrijven."}</div>
     ${pl.length ? `<label class="f">Ingepland</label><div class="rows">${pl.map(planRow).join("")}</div>` : ""}
@@ -927,11 +957,16 @@ function detailSheet(kid) {
     <p class="note" style="margin-top:0">${recent.length ? recent.map(e => `${ago(e.t)} · ${esc(P[e.w]?.naam || "?")}`).join("<br>") : "Nog nooit."}<br>Totaal: ${P.maarten.naam} ${c.maarten}× · ${P.femke.naam} ${c.femke}×</p>
     <div class="btnrow"><button class="btn ghost" id="dEdit">✏️ Aanpassen</button><button class="btn primary" id="dPlan">📅 Inplannen</button></div>`);
   $("#dEdit").onclick = () => editSheet(kid);
-  if (heeftLijst(k)) {
-    renderLijst();
-    $("#lijstOk").onclick = () => lijstToevoegen(kid);
-    $("#lijstIn").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); lijstToevoegen(kid); } };
-    $("#lijstBox").onclick = e => {
+  if (heeftLijst(k)) renderLijst();
+  $("#dPlan").onclick = () => planSheet(kid);
+}
+
+// één klik-afhandeling voor alle lijstjes (tabblad en klusje)
+document.addEventListener("click", e => {
+  const w = e.target.closest(".lijstw"); if (!w) return;
+  const kid = w.dataset.kid;
+  if (e.target.closest(".lijstOk")) { lijstToevoegen(kid, w.querySelector(".lijstIn")); return; }
+  {
       const t = e.target.closest("[data-li],[data-ldel],[data-lwis],[data-lmin],[data-lplus]"); if (!t) return;
       e.stopPropagation();
       const id = t.dataset.lmin || t.dataset.lplus;
@@ -941,10 +976,12 @@ function detailSheet(kid) {
       if (t.dataset.li) { const x = (data.lijsten[kid] || {})[t.dataset.li]; if (x) write("lijsten/" + kid + "/" + t.dataset.li + "/af", !x.af); }
       else if (t.dataset.ldel) write("lijsten/" + kid + "/" + t.dataset.ldel, null);
       else lijstItems(kid).filter(x => x.af).forEach(x => write("lijsten/" + kid + "/" + x.id, null));
-    };
   }
-  $("#dPlan").onclick = () => planSheet(kid);
-}
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter" || !e.target.classList.contains("lijstIn")) return;
+  e.preventDefault(); const w = e.target.closest(".lijstw"); lijstToevoegen(w.dataset.kid, e.target);
+});
 
 function planSheet(kid) {
   const opts = Object.entries(data.klusjes).sort((a, b) => a[1].naam.localeCompare(b[1].naam));
@@ -1070,8 +1107,8 @@ document.body.addEventListener("click", e => {
   if (t.dataset.tab) {
     tab = t.dataset.tab;
     document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("on", b === t));
-    ["klusjes", "planning", "score", "historie"].forEach(v => $("#v-" + v).classList.toggle("hidden", v !== tab));
-    $("#title").textContent = { klusjes: "Klusjes", planning: "Planning", score: "Wie doet zijn deel?", historie: "Historie" }[tab];
+    ["klusjes", "boodschappen", "planning", "score", "historie"].forEach(v => $("#v-" + v).classList.toggle("hidden", v !== tab));
+    $("#title").textContent = { klusjes: "Klusjes", boodschappen: "Boodschappen", planning: "Planning", score: "Wie doet zijn deel?", historie: "Historie" }[tab];
     window.scrollTo(0, 0); render();
   }
 });
