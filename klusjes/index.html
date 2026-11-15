@@ -233,6 +233,8 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.45}
 .card.sleep{position:fixed;z-index:50;box-shadow:0 14px 34px #0003;transform:scale(1.03);transition:transform .12s;pointer-events:none}
 .sleep-plek{border:2px dashed var(--accent);border-radius:var(--radius);background:var(--accent-soft)}
 .card.houd{transition:transform .35s;transform:scale(.97)}
+.laatst{display:block;font-size:12.5px;color:var(--ink);margin:2px 0 1px;line-height:1.35}
+.laatst.nooit{color:var(--muted)}
 .hidden{display:none!important}
 </style>
 </head>
@@ -307,7 +309,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "37";   // moet gelijk zijn aan versie.json
+const VERSIE = "38";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -866,11 +868,16 @@ function renderKlusjes() {
   const kaart = ({ id, k, s }, grp) => {
     const c = counts(since, id);
     const nLijst = heeftLijst(k) ? lijstItems(id).filter(x => !x.af).length : 0;
-    const lastTxt = (nLijst ? `🛒 ${nLijst} op de lijst · ` : "") + (s.last ? `${ago(s.last.t)} · ${esc(P[s.last.w]?.naam || "?")}` : (!k.elke && k.uitleg ? esc(k.uitleg.split("\n")[0]) : freqTxt(k.elke).replace(/^./, c => c.toUpperCase())));
+    const lastTxt = (nLijst ? `🛒 ${nLijst} op de lijst · ` : "") + (!k.elke && k.uitleg ? esc(k.uitleg.split("\n")[0]) : freqTxt(k.elke).replace(/^./, c => c.toUpperCase()));
+    const tagTonen = s.label.toLowerCase() !== freqTxt(k.elke);
+    // wanneer laatst gedaan, en door wie
+    const laatst = s.last
+      ? `<span class="laatst"><span style="color:${P[s.last.w]?.kleur || "inherit"}">✓</span> Laatst: ${ago(s.last.t)} · ${esc(P[s.last.w]?.naam || "?")}</span>`
+      : (tagTonen && /nog niet gedaan/i.test(s.label) ? "" : `<span class="laatst nooit">Nog nooit gedaan</span>`);
     return `<div class="card ${s.uit ? "uit" : ""}" data-kid="${id}" data-grp="${grp}">
       <button class="main" data-open="${id}">
         <div class="emoji">${esc(k.emoji || "✨")}</div>
-        <div class="txt"><h3>${esc(k.naam)}${k.uitleg ? ` <span style="font-size:13px">📝</span>` : ""}</h3><p><b class="ptn">${puntenVan(k, id)} pt</b> · ${lastTxt}</p>${s.label.toLowerCase() === freqTxt(k.elke) ? "" : `<span class="tag ${s.cls}">${s.label}</span>`}${(() => { const pl = planList(id)[0]; return pl ? `<span class="plan">📅 ${dagNaam(pl.datum).split(" ")[0].toLowerCase()} · ${esc(wieTxt(pl.wie))}</span>` : ""; })()}</div>
+        <div class="txt"><h3>${esc(k.naam)}${k.uitleg ? ` <span style="font-size:13px">📝</span>` : ""}</h3><p><b class="ptn">${puntenVan(k, id)} pt</b> · ${lastTxt}</p>${laatst}${tagTonen ? `<span class="tag ${s.cls}">${s.label}</span>` : ""}${(() => { const pl = planList(id)[0]; return pl ? `<span class="plan">📅 ${dagNaam(pl.datum).split(" ")[0].toLowerCase()} · ${esc(wieTxt(pl.wie))}</span>` : ""; })()}</div>
       </button>
       <div class="who">
         <button class="m" data-done="${id}" data-wie="maarten" aria-label="${P.maarten.naam} deed ${esc(k.naam)}">M${c.maarten ? `<span class="n">${c.maarten}</span>` : ""}</button>
