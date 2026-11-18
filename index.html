@@ -288,11 +288,11 @@ function renderShop(){
 }
 $("#shop").addEventListener("submit",e=>{e.preventDefault();const v=$("#exIn").value.trim();if(!v)return;extras.push({t:v,done:false});save();renderShop();$("#exIn").focus()});
 $("#shop").addEventListener("click",async e=>{
-  const c=e.target.closest("[data-chk]"); if(c){const k=c.dataset.chk;checked[k]=!checked[k];if(!checked[k])delete checked[k];save();return renderShop();}
+  const c=e.target.closest("[data-chk]"); if(c){const k=c.dataset.chk;checked[k]=!checked[k];if(!checked[k])delete checked[k];save();renderShop();const [rid,i]=k.split("|");return vinkInKlusjes(rid,i,!!checked[k]);}
   const x=e.target.closest("[data-ex]"); if(x){const i=+x.dataset.ex; if(extras[i].done&&x._hold){} extras[i].done=!extras[i].done; save(); return renderShop();}
   const rm=e.target.closest("[data-rm]"); if(rm){const id=rm.dataset.rm;cart=cart.filter(z=>z!==id);Object.keys(checked).forEach(k=>{if(k.startsWith(id+"|"))delete checked[k]});save();renderShop();return haalUitKlusjes(id);}
   const a=e.target.closest("[data-act]"); if(!a) return;
-  if(a.dataset.act==="clear"){ if(!a.dataset.sure){a.dataset.sure="1";a.textContent="Zeker weten?";return;} cart=[];checked={};extras=[];save();renderShop();toast("Lijst is leeg");}
+  if(a.dataset.act==="clear"){ if(!a.dataset.sure){a.dataset.sure="1";a.textContent="Zeker weten?";return;} const weg=Object.keys(naarKlusjes);cart=[];checked={};extras=[];save();renderShop();toast("Lijst is leeg");for(const id of weg)await haalUitKlusjes(id);if(weg.length)toast("Lijst is leeg, ook in Klusjes");}
   if(a.dataset.act==="copy"){
     const lines=[];
     cart.map(byId).filter(Boolean).forEach(r=>{lines.push(r.name.toUpperCase());r.ing.forEach((t,i)=>{if(!checked[r.id+"|"+i])lines.push("- "+t)});lines.push("")});
@@ -343,7 +343,7 @@ function kiesSheet(id) {
     const b = e.target.closest("[data-k]"); if (b) { kiesAan[+b.dataset.k] = !kiesAan[+b.dataset.k]; return teken(); }
     const a = e.target.closest("[data-kact]"); if (!a) return;
     if (a.dataset.kact === "nee") return sluitKies();
-    const gekozen = r.ing.filter((_, i) => kiesAan[i]); if (!gekozen.length) return;
+    const gekozen = r.ing.map((t, i) => [i, t]).filter(([i]) => kiesAan[i]); if (!gekozen.length) return;
     // in de eigen lijst: wat ze niet nodig heeft alvast afvinken
     if (!cart.includes(id)) cart.push(id);
     r.ing.forEach((_, i) => { if (!kiesAan[i]) checked[id + "|" + i] = true; else delete checked[id + "|" + i]; });
@@ -361,23 +361,28 @@ async function zetInKlusjes(id, ingredienten) {
     const kid = await boodschappenKlusje();
     const lijst = await kGet("lijsten/" + kid) || {};
     const open = {}; for (const [lid, x] of Object.entries(lijst)) if (x && !x.af && typeof x.tekst === "string") open[x.tekst.toLowerCase()] = lid;
-    const nieuw = {}, ids = []; let dubbel = 0;
-    for (const t of ingredienten) {
+    const nieuw = {}, ids = [], map = {}; let dubbel = 0;
+    for (const [i, t] of ingredienten) {
       const { aantal, tekst } = splitsAantal(t);
       if (open[tekst.toLowerCase()]) { dubbel++; continue; }           // staat er al op: niet dubbel
-      const lid = kUid(); open[tekst.toLowerCase()] = lid; ids.push(lid);
+      const lid = kUid(); open[tekst.toLowerCase()] = lid; ids.push(lid); map[i] = lid;
       nieuw[lid] = { tekst, aantal, af: false, t: Date.now() + ids.length, door: "femke", recept: byId(id).name };
     }
     if (ids.length) await kPatch("lijsten/" + kid, nieuw);
-    naarKlusjes[id] = { kid, ids: (naarKlusjes[id]?.ids || []).concat(ids) }; save();
+    naarKlusjes[id] = { kid, ids: (naarKlusjes[id]?.ids || []).concat(ids), map: Object.assign(naarKlusjes[id]?.map || {}, map) }; save();
     toast(ids.length ? `${ids.length} op de Klusjes-lijst 🛒` + (dubbel ? ` (${dubbel} stond er al)` : "") : "Stond al allemaal op de lijst ✓");
   } catch (e) { toast("Geen verbinding met Klusjes — alleen op je eigen lijst"); }
 }
+// afvinken in het kookboek = ook afvinken in Klusjes (en andersom terugzetten)
+async function vinkInKlusjes(id, i, af) {
+  const n = naarKlusjes[id], lid = n && n.map && n.map[i]; if (!lid || !kBase()) return;
+  try { const x = await kGet("lijsten/" + n.kid + "/" + lid); if (x) await kPatch("lijsten/" + n.kid + "/" + lid, { af }); } catch (e) {}
+}
 async function haalUitKlusjes(id) {
-  const n = naarKlusjes[id]; if (!n || !n.ids.length || !kBase()) { toast("Van de lijst gehaald"); return; }
+  const n = naarKlusjes[id]; if (!n || !n.ids.length || !kBase()) { delete naarKlusjes[id]; save(); toast("Van de lijst gehaald"); return; }
   try {
     const lijst = await kGet("lijsten/" + n.kid) || {};
-    const weg = {}; n.ids.forEach(lid => { if (lijst[lid] && !lijst[lid].af) weg[lid] = null; });   // al gekocht laten we staan
+    const weg = {}; n.ids.forEach(lid => { if (lijst[lid]) weg[lid] = null; });
     if (Object.keys(weg).length) await kPatch("lijsten/" + n.kid, weg);
     delete naarKlusjes[id]; save();
     toast("Ook van de Klusjes-lijst gehaald");
