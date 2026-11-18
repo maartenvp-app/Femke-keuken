@@ -8,6 +8,8 @@ Recepten-app voor Femke's iPhone: recepten met afvinkbare ingrediënten en stapp
 
 Wat Femke zelf toevoegt of afvinkt, wordt alleen op haar telefoon bewaard.
 
+**Gekoppeld aan Klusjes:** tik in een recept op *Op boodschappenlijst*, kies wat je moet halen, en die ingrediënten komen live op de boodschappenlijst in de Klusjes-app (zelfde database als `klusjes/config.js`).
+
 ## Klusjes (Maarten & Femke)
 
 Klusjes in huis afvinken (wie deed het, hoe vaak), live gedeeld tussen beide telefoons.

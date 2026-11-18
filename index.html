@@ -95,6 +95,10 @@ nav.tabs button.active{color:var(--accent)}
 .sheet-bg{position:fixed;inset:0;background:rgba(43,33,27,.4);display:none;z-index:20}
 .sheet{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-radius:22px 22px 0 0;max-height:92vh;overflow:auto;padding:18px 18px calc(18px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .25s ease;z-index:21}
 .sheet.open{transform:none}
+#kies .ing .box{flex:none}
+#kies .ing:not(.on) .t{color:var(--muted);text-decoration:line-through}
+#kies .ing.on .box{background:var(--green);border-color:var(--green)}
+#kies .sub{margin:-6px 0 8px}
 .sheet h2{font-size:24px;margin-bottom:12px}
 .sheet label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:12px 0 6px}
 .sheet input,.sheet textarea{width:100%;border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px;font:inherit;font-size:16px}
@@ -151,8 +155,12 @@ nav.tabs button.active{color:var(--accent)}
   </div>
 </div>
 
+<!-- KIES-INGREDIËNTEN SHEET (naar Klusjes-boodschappenlijst) -->
+<div class="sheet" id="kies"></div>
+
 <div class="toast" id="toast"></div>
 
+<script src="klusjes/config.js"></script>
 <script src="recepten.js"></script>
 <script>
 const BASE = window.RECEPTEN || [];
@@ -169,7 +177,8 @@ let cart = store.get("cart",[]);            // recipe ids op de lijst
 let checked = store.get("checked",{});      // "id|i" -> true (boodschappen afgevinkt)
 let cookChecks = store.get("cook",{});      // "id|ing|i" / "id|step|i"
 let extras = store.get("extras",[]);        // [{t, done}]
-const save = ()=>{store.set("custom",custom);store.set("cart",cart);store.set("checked",checked);store.set("cook",cookChecks);store.set("extras",extras);updateBadge();};
+let naarKlusjes = store.get("naarKlusjes",{}); // recept-id -> ids op de Klusjes-lijst
+const save = ()=>{store.set("custom",custom);store.set("cart",cart);store.set("checked",checked);store.set("cook",cookChecks);store.set("extras",extras);store.set("naarKlusjes",naarKlusjes);updateBadge();};
 
 const all = ()=>BASE.concat(custom);
 const byId = id=>all().find(r=>r.id===id);
@@ -243,7 +252,7 @@ $("#detail").addEventListener("click",e=>{
   if(a){
     const act=a.dataset.act;
     if(act==="back") return show("home");
-    if(act==="cart"){ if(cart.includes(id)){cart=cart.filter(x=>x!==id);toast("Van de lijst gehaald")} else {cart.push(id);toast("Op de boodschappenlijst 🛒")} save(); return openRecipe(id); }
+    if(act==="cart"){ if(cart.includes(id)){cart=cart.filter(x=>x!==id);save();openRecipe(id);haalUitKlusjes(id);} else kiesSheet(id); return; }
     if(act==="reset"){ Object.keys(cookChecks).forEach(k=>{if(k.startsWith(id+"|"))delete cookChecks[k]}); save(); return openRecipe(id); }
     if(act==="delete"){ if(a.dataset.sure){ custom=custom.filter(x=>x.id!==id); cart=cart.filter(x=>x!==id); save(); toast("Verwijderd"); return show("home"); } a.dataset.sure="1"; a.textContent="Tik nog een keer om te verwijderen"; return; }
   }
@@ -281,7 +290,7 @@ $("#shop").addEventListener("submit",e=>{e.preventDefault();const v=$("#exIn").v
 $("#shop").addEventListener("click",async e=>{
   const c=e.target.closest("[data-chk]"); if(c){const k=c.dataset.chk;checked[k]=!checked[k];if(!checked[k])delete checked[k];save();return renderShop();}
   const x=e.target.closest("[data-ex]"); if(x){const i=+x.dataset.ex; if(extras[i].done&&x._hold){} extras[i].done=!extras[i].done; save(); return renderShop();}
-  const rm=e.target.closest("[data-rm]"); if(rm){const id=rm.dataset.rm;cart=cart.filter(z=>z!==id);Object.keys(checked).forEach(k=>{if(k.startsWith(id+"|"))delete checked[k]});save();return renderShop();}
+  const rm=e.target.closest("[data-rm]"); if(rm){const id=rm.dataset.rm;cart=cart.filter(z=>z!==id);Object.keys(checked).forEach(k=>{if(k.startsWith(id+"|"))delete checked[k]});save();renderShop();return haalUitKlusjes(id);}
   const a=e.target.closest("[data-act]"); if(!a) return;
   if(a.dataset.act==="clear"){ if(!a.dataset.sure){a.dataset.sure="1";a.textContent="Zeker weten?";return;} cart=[];checked={};extras=[];save();renderShop();toast("Lijst is leeg");}
   if(a.dataset.act==="copy"){
@@ -292,6 +301,88 @@ $("#shop").addEventListener("click",async e=>{
   }
 });
 function updateBadge(){const b=$("#badge");const n=cart.length+extras.filter(x=>!x.done).length;b.hidden=!n;b.textContent=n;}
+
+/* --- KOPPELING MET KLUSJES (gedeelde boodschappenlijst via Firebase) --- */
+const KCFG = window.KLUSJES_CONFIG || {};
+const kBase = () => {
+  const ls = k => { try { const v = localStorage.getItem("klusjes:" + k); return v ? JSON.parse(v) : ""; } catch (e) { return ""; } };
+  const url = (ls("dbUrl") || KCFG.FIREBASE_URL || "").replace(/\/+$/, ""), code = ls("huisCode") || KCFG.HUIS_CODE;
+  return url && code ? url + "/huishoudens/" + encodeURIComponent(code) : "";
+};
+const kUid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+async function kGet(pad) { const r = await fetch(kBase() + "/" + pad + ".json"); if (!r.ok) throw new Error(r.status); return r.json(); }
+async function kPatch(pad, obj) { const r = await fetch(kBase() + "/" + pad + ".json", { method: "PATCH", body: JSON.stringify(obj) }); if (!r.ok) throw new Error(r.status); }
+// het klusje waar de boodschappenlijst bij hoort (zelfde regel als in de Klusjes-app)
+async function boodschappenKlusje() {
+  const k = await kGet("klusjes") || {};
+  const e = Object.entries(k).find(([, x]) => x && /boodschap/i.test(x.naam || ""));
+  return e ? e[0] : "s-boodschappen";
+}
+// "2 paprika's" -> 2× paprika's, maar "400 ml kokosmelk" blijft zoals het is
+function splitsAantal(t) {
+  const EENHEID = /^(gr|gram|g|kg|kilo|l|liter|ml|cl|dl|el|tl|ons|pond|cm|m|meter)\b/i;
+  const m = t.match(/^(\d{1,2})\s*[x×]?\s+(.+)$/i);
+  if (m && !EENHEID.test(m[2])) return { aantal: Math.max(1, +m[1]), tekst: m[2].trim().slice(0, 80) };
+  return { aantal: 1, tekst: t.trim().slice(0, 80) };
+}
+let kiesAan = [];
+function kiesSheet(id) {
+  const r = byId(id); kiesAan = r.ing.map(() => true);
+  const teken = () => {
+    const n = kiesAan.filter(Boolean).length;
+    $("#kies").innerHTML = `<h2>🛒 Wat moet je halen?</h2>
+      <div class="sub">Tik weg wat je al in huis hebt. De rest komt op de boodschappenlijst in Klusjes.</div>
+      ${r.ing.map((t, i) => `<button class="ing ${kiesAan[i] ? "on" : ""}" data-k="${i}"><span class="box">✓</span><span class="t">${esc(t)}</span></button>`).join("")}
+      <div class="actions" style="margin-top:16px">
+        <button class="btn ghost" data-kact="nee">Annuleren</button>
+        <button class="btn primary" data-kact="ja" ${n ? "" : "disabled style='opacity:.5'"}>Op de lijst (${n})</button>
+      </div>`;
+  };
+  teken();
+  $("#kies").onclick = async e => {
+    const b = e.target.closest("[data-k]"); if (b) { kiesAan[+b.dataset.k] = !kiesAan[+b.dataset.k]; return teken(); }
+    const a = e.target.closest("[data-kact]"); if (!a) return;
+    if (a.dataset.kact === "nee") return sluitKies();
+    const gekozen = r.ing.filter((_, i) => kiesAan[i]); if (!gekozen.length) return;
+    // in de eigen lijst: wat ze niet nodig heeft alvast afvinken
+    if (!cart.includes(id)) cart.push(id);
+    r.ing.forEach((_, i) => { if (!kiesAan[i]) checked[id + "|" + i] = true; else delete checked[id + "|" + i]; });
+    save(); sluitKies(); openRecipe(id);
+    await zetInKlusjes(id, gekozen);
+  };
+  $("#sheetBg").style.display = "block"; $("#sheetBg").onclick = sluitKies;
+  requestAnimationFrame(() => $("#kies").classList.add("open"));
+}
+function sluitKies() { $("#kies").classList.remove("open"); setTimeout(() => { $("#sheetBg").style.display = "none"; $("#sheetBg").onclick = closeSheet; }, 250); }
+
+async function zetInKlusjes(id, ingredienten) {
+  if (!kBase()) { toast("Op je eigen lijst gezet 🛒"); return; }
+  try {
+    const kid = await boodschappenKlusje();
+    const lijst = await kGet("lijsten/" + kid) || {};
+    const open = {}; for (const [lid, x] of Object.entries(lijst)) if (x && !x.af && typeof x.tekst === "string") open[x.tekst.toLowerCase()] = lid;
+    const nieuw = {}, ids = []; let dubbel = 0;
+    for (const t of ingredienten) {
+      const { aantal, tekst } = splitsAantal(t);
+      if (open[tekst.toLowerCase()]) { dubbel++; continue; }           // staat er al op: niet dubbel
+      const lid = kUid(); open[tekst.toLowerCase()] = lid; ids.push(lid);
+      nieuw[lid] = { tekst, aantal, af: false, t: Date.now() + ids.length, door: "femke", recept: byId(id).name };
+    }
+    if (ids.length) await kPatch("lijsten/" + kid, nieuw);
+    naarKlusjes[id] = { kid, ids: (naarKlusjes[id]?.ids || []).concat(ids) }; save();
+    toast(ids.length ? `${ids.length} op de Klusjes-lijst 🛒` + (dubbel ? ` (${dubbel} stond er al)` : "") : "Stond al allemaal op de lijst ✓");
+  } catch (e) { toast("Geen verbinding met Klusjes — alleen op je eigen lijst"); }
+}
+async function haalUitKlusjes(id) {
+  const n = naarKlusjes[id]; if (!n || !n.ids.length || !kBase()) { toast("Van de lijst gehaald"); return; }
+  try {
+    const lijst = await kGet("lijsten/" + n.kid) || {};
+    const weg = {}; n.ids.forEach(lid => { if (lijst[lid] && !lijst[lid].af) weg[lid] = null; });   // al gekocht laten we staan
+    if (Object.keys(weg).length) await kPatch("lijsten/" + n.kid, weg);
+    delete naarKlusjes[id]; save();
+    toast("Ook van de Klusjes-lijst gehaald");
+  } catch (e) { toast("Van je lijst gehaald (Klusjes niet bereikbaar)"); }
+}
 
 /* --- NAVIGATIE --- */
 function show(view){
