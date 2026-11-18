@@ -310,8 +310,14 @@ const kBase = () => {
   return url && code ? url + "/huishoudens/" + encodeURIComponent(code) : "";
 };
 const kUid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-async function kGet(pad) { const r = await fetch(kBase() + "/" + pad + ".json"); if (!r.ok) throw new Error(r.status); return r.json(); }
-async function kPatch(pad, obj) { const r = await fetch(kBase() + "/" + pad + ".json", { method: "PATCH", body: JSON.stringify(obj) }); if (!r.ok) throw new Error(r.status); }
+// met tijdslimiet, zodat het nooit eindeloos blijft hangen
+function kFetch(pad, opt) {
+  const c = new AbortController(), t = setTimeout(() => c.abort(), 10000);
+  return fetch(kBase() + "/" + pad + ".json", Object.assign({ signal: c.signal, cache: "no-store" }, opt || {}))
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).finally(() => clearTimeout(t));
+}
+const kGet = pad => kFetch(pad);
+const kPatch = (pad, obj) => kFetch(pad, { method: "PATCH", body: JSON.stringify(obj) });
 // het klusje waar de boodschappenlijst bij hoort (zelfde regel als in de Klusjes-app)
 async function boodschappenKlusje() {
   const k = await kGet("klusjes") || {};
@@ -358,8 +364,11 @@ function sluitKies() { $("#kies").classList.remove("open"); setTimeout(() => { $
 async function zetInKlusjes(id, ingredienten) {
   if (!kBase()) { toast("Op je eigen lijst gezet 🛒"); return; }
   try {
-    const kid = await boodschappenKlusje();
-    const lijst = await kGet("lijsten/" + kid) || {};
+    toast("Versturen naar Klusjes…");
+    const [kl, alle] = await Promise.all([kGet("klusjes"), kGet("lijsten")]);
+    const e = Object.entries(kl || {}).find(([, x]) => x && /boodschap/i.test(x.naam || ""));
+    const kid = e ? e[0] : "s-boodschappen";
+    const lijst = (alle || {})[kid] || {};
     const open = {}; for (const [lid, x] of Object.entries(lijst)) if (x && !x.af && typeof x.tekst === "string") open[x.tekst.toLowerCase()] = lid;
     const nieuw = {}, ids = [], map = {}; let dubbel = 0;
     for (const [i, t] of ingredienten) {
@@ -371,7 +380,7 @@ async function zetInKlusjes(id, ingredienten) {
     if (ids.length) await kPatch("lijsten/" + kid, nieuw);
     naarKlusjes[id] = { kid, ids: (naarKlusjes[id]?.ids || []).concat(ids), map: Object.assign(naarKlusjes[id]?.map || {}, map) }; save();
     toast(ids.length ? `${ids.length} op de Klusjes-lijst 🛒` + (dubbel ? ` (${dubbel} stond er al)` : "") : "Stond al allemaal op de lijst ✓");
-  } catch (e) { toast("Geen verbinding met Klusjes — alleen op je eigen lijst"); }
+  } catch (e) { toast("Klusjes niet bereikbaar (" + (e.name === "AbortError" ? "te traag" : e.message) + ") — alleen op je eigen lijst"); }
 }
 // afvinken in het kookboek = ook afvinken in Klusjes (en andersom terugzetten)
 async function vinkInKlusjes(id, i, af) {
@@ -423,6 +432,12 @@ $("#saveAdd").onclick=()=>{
 };
 
 updateBadge(); show("home");
+/* nieuwe versie online? dan verversen (iPhone houdt een beginscherm-app anders lang op de oude versie) */
+const VERSIE = "2";   // moet gelijk zijn aan versie.json
+async function checkVersie(){try{const v=(await (await fetch("versie.json?t="+Date.now(),{cache:"no-store"})).json()).v;
+  if(v&&v!==VERSIE&&!$("#sheet").classList.contains("open")&&!$("#kies").classList.contains("open")){const n=+(sessionStorage.getItem("fk_reload")||0);if(n<2){sessionStorage.setItem("fk_reload",n+1);location.reload();}}
+  else sessionStorage.removeItem("fk_reload");}catch(e){}}
+checkVersie(); document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkVersie();});
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}
 </script>
 </body>

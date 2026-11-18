@@ -309,7 +309,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "39";   // moet gelijk zijn aan versie.json
+const VERSIE = "40";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -448,7 +448,7 @@ function connect() {
     } else {
       for (const [k, v] of Object.entries(msg.data || {})) setPath(server, msg.path.replace(/\/$/, "") + "/" + k, v);
     }
-    online = true; setDot();
+    online = true; setDot(); laatsteBericht = Date.now();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
     seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); migreer8(); migreer9(); migreer10(); migreer11(); maakBackup();
@@ -456,13 +456,18 @@ function connect() {
   };
   es.addEventListener("put", onData("put"));
   es.addEventListener("patch", onData("patch"));
+  es.addEventListener("keep-alive", () => { laatsteBericht = Date.now(); });   // Firebase stuurt elke ±30 s een teken van leven
   es.addEventListener("cancel", () => { online = false; setDot("Geen toegang tot database (regels?)"); });
   es.onopen = () => { online = true; setDot(); flush(); };
   es.onerror = () => { online = false; loaded = false; setDot(); };
 }
-window.addEventListener("online", () => { flush(); if (!es || es.readyState === 2) connect(); });
+window.addEventListener("online", () => connect());
+window.addEventListener("pageshow", e => { if (e.persisted) connect(); });
+// vangnet: elke 20 s zonder bericht van de database opnieuw verbinden
+let laatsteBericht = Date.now();
+setInterval(() => { if (document.visibilityState === "visible" && url() && Date.now() - laatsteBericht > 45000) { laatsteBericht = Date.now(); connect(); } }, 20000);
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") { checkVersie(); flush(); if (!es || es.readyState === 2) connect(); }
+  if (document.visibilityState === "visible") { checkVersie(); connect(); }   // altijd vers verbinden: op de achtergrond valt de live-verbinding vaak stil weg
 });
 
 function setDot(msg) {
