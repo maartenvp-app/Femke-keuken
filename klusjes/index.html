@@ -309,7 +309,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const DAG = 864e5;
-const VERSIE = "40";   // moet gelijk zijn aan versie.json
+const VERSIE = "41";   // moet gelijk zijn aan versie.json
 
 /* ---------- automatisch bijwerken: nieuwe versie online? dan verversen ---------- */
 async function checkVersie() {
@@ -451,7 +451,7 @@ function connect() {
     online = true; setDot(); laatsteBericht = Date.now();
     save("server", server);
     if (kind === "put" && msg.path === "/") { loaded = true; dropStaleSeeds(); }
-    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); migreer8(); migreer9(); migreer10(); migreer11(); maakBackup();
+    seedIfEmpty(); migreer(); migreer2(); migreer3(); migreer4(); migreer5(); migreer6(); migreer7(); migreer8(); migreer9(); migreer10(); migreer11(); migreer12(); maakBackup();
     rebuild(); render(); flush();
   };
   es.addEventListener("put", onData("put"));
@@ -636,6 +636,16 @@ function migreer11() {
   voegToe("m11", [["cameras", "Camera's opladen", "📷", 0, [], "techniek", 1]]);
 }
 
+// Bed verschonen: elke 1,5 week (bestaat het al, dan alleen de frequentie aanpassen)
+function migreer12() {
+  if (!loaded || !server.klusjes || (server.instellingen && server.instellingen.m12) || pending.some(op => op.p === "instellingen/m12")) return;
+  const e = Object.entries(server.klusjes).find(([, k]) => k && /\bbed|beddengoed|lakens/i.test(k.naam || ""));
+  if (e) pending.push({ m: "PUT", u: 1, p: "klusjes/" + e[0] + "/elke", d: 11 });
+  else pending.push({ m: "PUT", seed: "nieuw", p: "klusjes/s-bed", d: { naam: "Bed verschonen", emoji: "🛏️", elke: 11, cat: "schoonmaak", punten: 3, v: 412 } });
+  pending.push({ m: "PUT", u: 1, p: "instellingen/m12", d: true });
+  save("pending", pending); flush();
+}
+
 /* ---------- back-up: elke dag een kopie in de database (laatste 14 dagen) ---------- */
 function maakBackup() {
   if (!loaded || !server.klusjes || !Object.keys(server.klusjes).length) return;
@@ -747,7 +757,7 @@ function ago(t) {
   if (d < 7) return d + " dagen geleden";
   return new Date(t).toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
 }
-const FREQ = [[1, "Elke dag"], [2, "Om de dag"], [3, "Elke 3 dagen"], [7, "Elke week"], [14, "Om de week"], [30, "Elke maand"], [61, "Elke 2 maanden"], [91, "Elk kwartaal"], [182, "Elk half jaar"], [365, "Elk jaar"], [0, "Wanneer nodig"]];
+const FREQ = [[1, "Elke dag"], [2, "Om de dag"], [3, "Elke 3 dagen"], [7, "Elke week"], [11, "Elke 1,5 week"], [14, "Om de week"], [30, "Elke maand"], [61, "Elke 2 maanden"], [91, "Elk kwartaal"], [182, "Elk half jaar"], [365, "Elk jaar"], [0, "Wanneer nodig"]];
 const freqTxt = n => { const f = FREQ.find(x => x[0] === n); return f ? f[1].toLowerCase() : "elke " + n + " dagen"; };
 const isPeriodiek = k => !k.elke || k.elke > 14 || seizoen(k);
 const MND = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
@@ -833,7 +843,7 @@ const VOLGORDE = [
   // was
   "s-wittewas", "s-normalewas", "s-handdoeken", "s-ophangen", "s-droger", "s-vouwen", "s-strijken",
   // schoonmaak
-  "s-afstoffen", "s-stofzuigenbeneden", "s-stofzuigen", "s-dweilen", "s-wc", "s-badmeubel", "s-spiegel", "s-ramen",
+  "s-bed", "s-afstoffen", "s-stofzuigenbeneden", "s-stofzuigen", "s-dweilen", "s-wc", "s-badmeubel", "s-spiegel", "s-ramen",
   // keuken
   "s-vaatwasser", "s-boodschappen", "s-koelkast", "s-magnetron", "s-vaatwasserfilter", "s-afzuigkap", "s-oven", "s-voorraad", "s-vriezer",
   // buiten
